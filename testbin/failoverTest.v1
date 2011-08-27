@@ -1,0 +1,566 @@
+#!/bin/bash
+
+failureType=daemonDown
+#serverDown
+#ckptFilesLost
+#networkDown
+#daemonDown
+
+#delte tterrors.log before test
+deleteTimesTenLog=YES
+#each step will be marked in tterrors.log
+updateTimesTenLog=YES
+
+testId=Failover01
+dsn=XX
+dsn1=repdb1_1121
+host1=ozone1
+host1mgm=192.168.141.138
+serverport1=53389
+
+dsn2=repdb2_1121
+host2=ozone2
+host2mgm=192.168.141.139
+serverport2=53385
+osuser=oracle
+
+TIMEOUT=1250
+TIMEOUT_SHORT=120
+tmp=/tmp
+
+#-xx 11 -cc 1
+eval $(echo $@ | sed "s/ -/;/g" | sed "s/^-//" | tr ' ' '=')
+
+. common.h
+
+#---
+declare -a progress=(\ \| - / -)
+_mstep=0; _mstepmax=4
+
+function spinner {
+stepmax=$1
+delay=$2
+
+step=0
+while [ $step -lt $stepmax ]; do
+        echo -n ${progress[$_mstep]}
+        let _mstep++
+        if [ $_mstep -eq $_mstepmax ]; then _mstep=0; fi
+        sleep $delay
+        echo -n ""
+        let step++
+done
+#echo -n ""
+}
+
+
+function describe {
+  stepId=$1
+  echoTab "$(head -2 $testId.$stepId.log | tail -1 | cut -b7-9999)" 
+}
+
+function ____----step {
+  stepId=$1
+  where=$2
+  (
+     echo "---------------------------------------------------------------------------" 
+     echo "----- $stepId: $where" 
+     echo "---------------------------------------------------------------------------"
+  ) > $testId.$stepId.log
+
+
+  if [ "$updateTimesTenLog" == "YES" ]; then
+    ssh $osuser@$host1 >/dev/null 2>&1 <<SSH &
+      ttDaemonLog -msg "------------------ $testId:$stepId:$where --------------------------------"
+SSH
+    logpids=$!
+    if [ "$host1" != "$host2" ]; then
+      ssh $osuser@$host2 >/dev/null 2>&1 <<SSH &
+        ttDaemonLog -msg "------------------ $testId:$stepId:$where --------------------------------"
+SSH
+        logpids+=" "$!
+    fi
+    #jobs
+    #echo $logpids
+    wait $logpids
+  fi
+
+  describe $stepId
+  if [ "$DEBUG" == "YES" ]; then
+  	echo Pausing for 10s. ...; sleep 10
+  fi
+  if [ -f $testId.$stepId.out ]; then rm $testId.$stepId.out; fi
+  #if [ -f $testId.$stepId.err ]; then rm $testId.$stepId.err; fi
+
+  while read cmd; do 
+ 	eval $cmd >>$testId.$stepId.out 2>&1
+        #2>>$testId.$stepId.err
+  done
+  cat $testId.$stepId.out >>$testId.$stepId.log
+}
+
+function expectResponse {
+	type=$1
+
+	cat > $testId.$stepId.exp
+	cnt=0
+	done=NO
+	_mstep=0
+	while [ "$done" == "NO" ]; do  
+		echo -n ${progress[$_mstep]}
+		let _mstep++
+		if [ $_mstep -eq $_mstepmax ]; then _mstep=0; fi		
+		sleep 0.1
+		echo -n ""
+		if [ -f $testId.$stepId.msg ]; then
+			done=YES
+			result=OK
+		fi
+		let cnt++
+		if [ $cnt -eq $TIMEOUT ]; then
+			done=YES
+			result=ERROR
+		fi
+	done
+	#if [ $_mstep -ne 0 ]; then 
+	#	echo -n ""
+	#fi
+	if [ $result == OK ]; then
+			if grep "^Comment:" $testId.$stepId.msg >/dev/null 2>&1; then
+				diff $testId.$stepId.exp $testId.$stepId.out >$testId.$stepId.diff
+			else
+				diff $testId.$stepId.exp $testId.$stepId.msg >$testId.$stepId.diff
+			fi
+			if [ $? -eq 0 ]; then
+				echo "OK, $type: $(cat $testId.$stepId.exp | tr '\n' ' ')" | cut -b1-80
+				rm $testId.$stepId.diff
+				if [ "$VERBOSE" == "YES" ]; then
+					cat $testId.$stepId.exp
+				fi
+			else
+				echo "Unexpected response, info:"
+				cat $testId.$stepId.diff
+			fi
+	else
+		echo Error, info: timeout waiting for response file $testId.$stepId.msg | tee $testId.$stepId.err
+	fi
+	}
+
+function expectResponseOK {
+	expectResponse info
+}
+function expectResponseError {
+	expectResponse error
+}
+
+
+function expect {
+  expectedValue=$1
+  operator=$2
+  if [ -z "$operator" ]; then
+     operator='=='
+  fi
+  eval "test \"$expectedValue\" $operator \"$(cat $tmp/$$.test$testId.$stepId\-response)\""
+  if [ $? -eq 0 ]; then 
+     echo OK
+     okCount=$(( $okCount + 1 ))
+    (
+       echo "---------------------------------------------------------------------------" 
+       echo "----- OK, info: $expectedValue $operator $(cat $tmp/$$.test$testId.$stepId\-response)"
+       echo "---------------------------------------------------------------------------"
+    ) >> $tmp/$testId.$stepId 2>&1
+  else
+     errCount=$(( $errCount + 1 ))
+     echo Error, cause: $(cat $tmp/$$.test$testId.$stepId\-response)
+  (
+     echo "---------------------------------------------------------------------------" 
+     echo "----- Error, cause: $expectedValue NOT $operator $(cat $tmp/$$.test$testId.$stepId\-response)"
+     echo "---------------------------------------------------------------------------"
+  ) >> $tmp/$testId.$stepId 2>&1
+  fi
+}
+
+function extract {
+  extractPattern=$1
+  filter=$2
+  grep "$extractPattern" $tmp/$testId.$stepId >$tmp/$$.test$testId.$stepId\-responseGrep 2>&1
+  if [ $? -ne 0 ]; then
+     cat $tmp/$testId.$stepId | grep -v "^-----" >$tmp/$$.test$testId.$stepId\-responseAll
+  else
+     cat $tmp/$$.test$testId.$stepId\-responseGrep >$tmp/$$.test$testId.$stepId\-responseAll
+  fi
+  if [ -z "$filter" ]; then
+      cat $tmp/$$.test$testId.$stepId\-responseAll | cut -b1-100 > $tmp/$$.test$testId.$stepId\-response
+  else
+      eval "cat $tmp/$$.test$testId.$stepId\-responseAll | $filter"  > $tmp/$$.test$testId.$stepId\-response
+  fi
+}
+
+function testSummary {
+    echoTab "Test summary" 
+    if [ $errCount -ne 0 ]; then echo -n FAILED; else echo PASSED; fi
+    echo ", info: OK: $okCount, Error: $errCount"
+    errCount=0
+    okCount=0
+}
+
+
+#---
+
+function waitForStateChange {
+        _state=$4
+        _dsn=$1
+        _host=$2
+        _serverport=$3
+
+        cnt=0
+        done=NO
+        RepState=Unknown
+	_mstep=0
+        while [ "$done" == "NO" ]; do
+                RepState=$(ttIsqlCS -v1 -e"call ttrepstateget; exit" "TTC_SERVER=$_host;TTC_SERVER_DSN=$_dsn;TCP_PORT=$_serverport;uid=adm;pwd=adm" 2>>$testId.$stepId.err | cut -f2 -d' ' | cut -f1 -d,)
+                RepStateList=$RepStateList,$RepState
+                if [ "$RepState" == "$_state" ]; then
+                        done=YES
+		fi
+		#echo -n .
+		echo -n ${progress[$_mstep]}
+                let _mstep++
+                if [ $_mstep -eq $_mstepmax ]; then _mstep=0; fi
+                sleep 0.2
+                echo -n ""
+                let cnt++
+                if [ $cnt -eq $TIMEOUT_SHORT ]; then
+                        done=YES
+                fi
+        done
+	#echo -n ""
+        if [ "$RepState" == "$_state" ]; then
+                echo -n "OK, info: $(( $cnt / 5 )) s."
+        else
+                echo -n "Error, info: $RepStateList"
+                echo ------------ ERROR --------------
+                ttIsqlCS -e"call ttrepstateget; exit" "TTC_SERVER=$_host;TTC_SERVER_DSN=$_dsn;TCP_PORT=$_serverport;uid=adm;pwd=adm"
+                echo ------------ ERROR --------------
+        fi
+
+	if [ -f $testId.$stepId.err ]; then
+		if [ "$(cat $testId.$stepId.err)" != "" ]; then
+                	echo ". Error, info:"
+                	cat $testId.$stepId.err
+	  	else
+			rm $testId.$stepId.err
+		fi
+	fi
+	echo
+}
+
+function masterDown {
+ where="Crashing TimesTen"
+ case "$failureType" in
+   ckptFilesLost)
+        echoTab "$where - hiding files"
+        dsnfile=$(ttIsqlCS -e 'call ttconfiguration; exit' "TTC_SERVER=$host1;TTC_SERVER_DSN=$dsn1;TCP_PORT=$serverport1;uid=adm;pwd=adm"  | grep DataStore, | cut -f3 -d ' ')
+        ssh -q $osuser@$host1 >/dev/null 2>&1 <<SSH
+                mv $dsnfile.ds0 $dsnfile.ds0X
+                mv $dsnfile.ds1 $dsnfile.ds1X
+                dsn=$dsn1
+                pids=\$(dsnstatus | grep 0x | grep -v KEY | tr -s ' ' | cut -d ' ' -f2 | sort -u)
+                kill -9 \$pids
+SSH
+        echo Done.
+        ;;
+   serverDown)
+        echoTab "$where - stoping server"
+        ssh -q $osuser@$host1 >/dev/null 2>&1 <<SSH
+                ttDaemonAdmin -stopserver
+SSH
+        echo Done.
+        ;;
+   networkDown)
+        echoTab "$where - taking network interface down"
+        ssh root@$host1mgm "/sbin/ifconfig eth1 down"
+        echo Done.
+        ;;
+   daemonDown)
+        echoTab "$where - taking TimesTen down"
+                ssh -q $osuser@$host1 >/dev/null 2>&1 <<SSH
+                   ttDaemonAdmin -stop -force
+SSH
+        echo Done.
+        ;;
+   *)
+        echo Error: TimesTen failure type NOT recognized.
+        ;;
+ esac
+}
+
+function masterUp {
+ where="Recovering TimesTen"
+ case "$failureType" in
+   ckptFilesLost)
+        echoTab "$where - moving files back"
+        ssh -q $osuser@$host1 >/dev/null 2>&1 <<SSH
+                mv $dsnfile.ds0X $dsnfile.ds0
+                mv $dsnfile.ds1X $dsnfile.ds1
+SSH
+        echo Done.
+        ;;
+   serverDown)
+        echoTab "$where - starting server"
+        ssh -q $osuser@$host1 >/dev/null 2>&1 <<SSH
+                ttDaemonAdmin -startserver
+SSH
+        echo Done.
+        ;;
+   networkDown)
+        echoTab "$where - taking interface up"
+        ssh root@$host1mgm "/sbin/ifconfig eth1 up"
+        echo Done.
+        ;;
+   daemonDown)
+        echoTab "$where - taking TimesTen daemon up, loading datastore, staring rep agent"
+                ssh -q $osuser@$host1 >/dev/null 2>&1 <<SSH
+                ttDaemonAdmin -start -force
+                ttAdmin -ramload $dsn1
+                ttAdmin -repstart $dsn1
+SSH
+        echo Done.
+        ;;
+   *)
+        echo Error: TimesTen failure type NOT recognized.
+        ;;
+ esac
+}
+
+function stepOut {
+cat out.log | sed -n "/Step $stepId - BEGIN/,/Step $stepId - END/p"
+}
+
+function stepOutEOF {
+cat out.log | sed -n "/Step $stepId - BEGIN/,//p"
+}
+
+#function nextStep {
+#	let step++
+#	echoTab "Step $stepId"; echo
+#}
+
+function stop {
+
+echo Finishing
+let stepId++
+echo $stepId exit >control
+
+sleep 2
+
+exit
+
+}
+
+function ttDeleteLog {
+	_host=$2
+	_user=$1
+        _dsn=$3
+
+  ssh $_user@$_host >/dev/null 2>&1 <<SSH &
+     eval \$(ttversion -m)
+     userlog=\$(cat \$effective_daemonhome/ttendaemon.options | grep '^\w*-userlog' | cut -f2 -d' ')
+     if [ "\$userlog" == "" ]; then
+        userlog=\$effective_daemonhome/tterrors.log
+     fi
+     if [ "$_dsn" != "" ]; then ttDatastoreDown.sh $_dsn; fi
+     ttDaemonAdmin -stop
+     rm \$userlog*
+     ttDaemonAdmin -start
+     if [ "$_dsn" != "" ]; then ttDatastoreUp.sh $_dsn; fi
+SSH
+
+}
+
+function ttDeleteLogsInSystem {
+if [ "$deleteTimesTenLog" == "YES" ]; then
+    if [ "$host1" != "$host2" ]; then
+      echoTab "Deleting TimesTen logs on $host1, $host2"
+      ttDeleteLog $osuser $host1 $dsn1; delpids=$!
+      ttDeleteLog $osuser $host2 $dsn2; delpids+=" "$!
+      #jobs
+      #echo $delpids
+      wait $delpids
+    else
+      echoTab "Deleting TimesTen logs on $host1"
+      ttDeleteLog $osuser $host1 $dsn1
+    fi
+    echo Done.
+fi
+
+}
+
+trap stop SIGHUP SIGINT SIGTERM SIGQUIT SIGSTOP
+
+cd
+cd /Users/rstyczynski/NetBeansProjects/ttclientfailover/dist
+rm control
+mkfifo control
+
+ttDeleteLogsInSystem
+
+step=0
+
+java -classpath $CLASSPATH:$(eval $(ttversion -m);echo $effective_insthome/lib) -d32 -jar ttclientfailover.jar < control >out.log &
+
+rm $tmp/*$testId* >/dev/null 2>&1
+rm $testId* >/dev/null 2>&1
+
+____----step 100 "Initializing test" <<EOF
+echo "\$stepId connect TTC_SERVER=$host1;TTC_SERVER_DSN=$dsn1;TCP_PORT=$serverport1;TTC_SERVER2=$host2;TTC_SERVER_DSN2=$dsn2;TCP_PORT2=$serverport2;uid=appuser;pwd=appuser" >control
+EOF
+expectResponseOK <<EOF
+Connection string:TTC_SERVER=$host1;TTC_SERVER_DSN=$dsn1;TCP_PORT=$serverport1;TTC_SERVER2=$host2;TTC_SERVER_DSN2=$dsn2;TCP_PORT2=$serverport2;uid=appuser;pwd=appuser
+EOF
+
+____----step 110 "Reading data from active" <<EOF
+	echo \$stepId step >control
+EOF
+expectResponseOK <<EOF
+Step
+Host:$dsn1@$host1:$serverport1
+Status:ACTIVE
+Resp:X
+EOF
+
+____----step 200 "Crashing master1" <<EOF
+	echo \$stepId comment \$where >control
+EOF
+masterDown
+
+____----step 210 "Reading data after failure" <<EOF
+	echo \$stepId step >control
+EOF
+expectResponseError <<EOF
+Step
+Error:[TimesTen][TimesTen 11.2.1.8.0 CLIENT]Statement handle invalid due to client failover
+EOF
+
+____----step 300 "Activate standby node" <<EOF
+	echo \$stepId comment \$where >control
+	ttIsqlCS -v1 -e"call ttrepstateset('active'); call ttrepstateget; exit" "TTC_SERVER=$host2;TTC_SERVER_DSN=$dsn2;TCP_PORT=$serverport2;uid=adm;pwd=adm"
+EOF
+waitForStateChange $dsn2 $host2 $serverport2 ACTIVE
+
+____----step 310 "Reading data from master2 after failover"  <<EOF
+        echo \$stepId step >control
+EOF
+expectResponseOK <<EOF
+Step
+Host:$dsn2@$host2:$serverport2
+Status:ACTIVE
+Resp:X
+EOF
+
+masterUp
+____----step 400 "Recovering master active" <<EOF
+	echo \$stepId comment \$where >control
+EOF
+
+____----step 405 "Waiting for master1 state change to STANDBY" <<EOF
+        echo \$stepId comment \$where >control
+EOF
+waitForStateChange $dsn1 $host1 $serverport1 STANDBY
+
+____----step 410 "Reading data from master2"  <<EOF
+        echo \$stepId step >control
+EOF
+expectResponseOK <<EOF
+Step
+Host:$dsn2@$host2:$serverport2
+Status:ACTIVE
+Resp:X
+EOF
+
+____----step 500 "Setting master1 to active and master2 to standby" <<EOF
+	echo \$stepId comment \$where >control
+	ttIsqlCS -v1 -e"call ttRepSubscriberWait('_ACTIVESTANDBY','TTREP',,,60);exit" "TTC_SERVER=$host2;TTC_SERVER_DSN=$dsn2;TCP_PORT=$serverport2;uid=adm;pwd=adm"
+	ttIsqlCS -v1 -e"call ttrepstop; call ttrepdeactivate; exit" "TTC_SERVER=$host2;TTC_SERVER_DSN=$dsn2;TCP_PORT=$serverport2;uid=adm;pwd=adm"
+	ttIsqlCS -v1 -e"call ttrepstateset('ACTIVE'); exit" "TTC_SERVER=$host1;TTC_SERVER_DSN=$dsn1;TCP_PORT=$serverport1;uid=adm;pwd=adm"
+	ttIsqlCS -v1 -e"call ttrepstart;exit" "TTC_SERVER=$host2;TTC_SERVER_DSN=$dsn2;TCP_PORT=$serverport2;uid=adm;pwd=adm"
+EOF
+expectResponseOK <<EOF
+< 00 >
+EOF
+echoTab "|--waiting for master1 status change"; waitForStateChange $dsn1 $host1 $serverport1 ACTIVE
+echoTab "\--waiting for master2 status change"; waitForStateChange $dsn2 $host2 $serverport2 STANDBY
+
+____----step 510 "Reading data from master1 after switchover"  <<EOF
+        echo \$stepId step >control
+EOF
+expectResponseOK <<EOF
+Step
+Host:$dsn1@$host1:$serverport1
+Status:ACTIVE
+Resp:X
+EOF
+
+____----step 600 "Crashing master1" <<EOF
+	echo comment \$where >control
+EOF
+masterDown
+
+____----step 610 "Reading data after failure" <<EOF
+	echo \$stepId step >control
+EOF
+expectResponseError <<EOF
+Step
+Error:[TimesTen][TimesTen 11.2.1.8.0 CLIENT]Statement handle invalid due to client failover
+EOF
+
+____----step 605 "Reading data after failure" <<EOF
+	echo \$stepId step >control
+EOF
+expectResponseOK <<EOF
+Step
+Error:[TimesTen][TimesTen 11.2.1.8.0 ODBC Driver][TimesTen]TT0821: No readable checkpoint files.  OS error: 'No such file or directory'.  Consider connecting with Overwrite=1 to create new data store -- file "db.c", lineno 9722, procedure "sbDbConnect"
+EOF
+
+#echoTab "\--waiting longer than TTC_TIMEOUT"
+#spinner $TIMEOUT 0.1
+#echo Done.
+
+____----step 610 "Reading data after failure"  <<EOF
+	echo \$stepId step >control
+EOF
+expectResponseError <<EOF
+Step
+Error:General error
+EOF
+
+____----step 700 "Recovering master active" <<EOF
+	echo \$stepId comment \$where >control
+EOF
+masterUp
+
+____----step 710 "Activate master1 node" <<EOF
+	echo \$stepId comment \$where >control
+	ttIsqlCS -v1 -e"call ttrepstateset('active'); call ttrepstateget; exit" "TTC_SERVER=$host1;TTC_SERVER_DSN=$dsn1;TCP_PORT=$serverport1;uid=adm;pwd=adm"
+	ttIsqlCS -v1 -e"call ttrepstateget; exit" "TTC_SERVER=$host2;TTC_SERVER_DSN=$dsn2;TCP_PORT=$serverport2;uid=adm;pwd=adm"
+EOF
+expectResponseOK <<EOF
+< ACTIVE, NO GRID >
+< STANDBY, NO GRID >
+EOF
+
+____----step 720 "Reading data from active" <<EOF
+        echo \$stepId step >control
+EOF
+expectResponseError <<EOF
+Step
+Error:General error
+EOF
+
+____----step 800 "Finishing" <<EOF
+	echo \$stepId exit >control
+EOF
+expectResponseOK <<EOF
+Done.
+EOF
+

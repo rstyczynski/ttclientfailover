@@ -1,0 +1,276 @@
+#!/bin/bash
+
+failureType=daemonDown
+#serverDown
+#ckptFilesLost
+#networkDown
+#daemonDown
+
+#delte tterrors.log before test
+deleteTimesTenLog=YES
+#each step will be marked in tterrors.log
+updateTimesTenLog=YES
+
+testId=Failover01
+dsn=XX
+
+dsn1=repdb1_1121
+host1=ozone1
+host1mgm=192.168.141.138
+serverport1=53389
+
+dsn2=repdb2_1121
+host2=ozone2
+host2mgm=192.168.141.139
+serverport2=53385
+
+osuser=oracle
+
+TIMEOUT=1250
+TIMEOUT_SHORT=120
+RESPOSE_LIMIT=100
+
+tmp=/tmp
+
+#parse parameters
+#echo pair of '-parameter value' will be executed as 'parameter=value'
+#parameter will be available in script as $parameter
+eval $(echo $@ | sed "s/ -/;/g" | sed "s/^-//" | tr ' ' '=')
+
+. common.h; . test.h
+
+trap stop SIGHUP SIGINT SIGTERM SIGQUIT SIGSTOP
+
+if [ "$(ls control 2>/dev/null)" != "" ]; then
+	rm control
+fi
+mkfifo control
+
+ttDeleteLogsInSystem
+
+step=0
+
+java -classpath $CLASSPATH:$(eval $(ttversion -m);echo $effective_insthome/lib) -d32 -jar ttclientfailover.jar < control >out.log 2>out.err&
+
+rm $tmp/*$testId* >/dev/null 2>&1
+rm $testId* >/dev/null 2>&1
+
+step 100 "Initializing test" <<EOF
+echo "\$stepId connect TTC_SERVER=$host1;TTC_SERVER_DSN=$dsn1;TCP_PORT=$serverport1;TTC_SERVER2=$host2;TTC_SERVER_DSN2=$dsn2;TCP_PORT2=$serverport2;uid=appuser;pwd=appuser" >control
+EOF
+expectResponseOK <<EOF
+Connection string:TTC_SERVER=$host1;TTC_SERVER_DSN=$dsn1;TCP_PORT=$serverport1;TTC_SERVER2=$host2;TTC_SERVER_DSN2=$dsn2;TCP_PORT2=$serverport2;uid=appuser;pwd=appuser
+EOF
+
+step 110 "Reading data from active" <<EOF
+	echo \$stepId step >control
+EOF
+expectResponseOK <<EOF
+Step
+Host:$dsn1@$host1:$serverport1
+Status:ACTIVE
+Resp:X
+EOF
+
+echo xxxxxxxxxxxxxxxxxxxxxxxxxxxx
+expectFile info msg err <<EOF
+Step
+Host:$dsn1@$host1:$serverport1
+Status:ACTIVE
+Resp:X
+EOF
+echo xxxxxxxxxxxxxxxxxxxxxxxxxxxx
+
+step 200 "Crashing master1" <<EOF
+	echo \$stepId comment \$where >control
+EOF
+masterDown
+
+step 210 "Reading data after failure" <<EOF
+	echo \$stepId step >control
+EOF
+expectResponseError <<EOF
+Step
+Error:[TimesTen][TimesTen 11.2.1.8.0 CLIENT]Statement handle invalid due to client failover
+EOF
+
+echo xxxxxxxxxxxxxxxxxxxxxxxxxxxx
+expectFile error err <<EOF
+[TimesTen][TimesTen 11.2.1.8.0 CLIENT]Statement handle invalid due to client failover
+EOF
+echo xxxxxxxxxxxxxxxxxxxxxxxxxxxx
+
+echo xxxxxxxxxxxxxxxxxxxxxxxxxxxx
+expectFile info msg err <<EOF
+Step
+Error:[TimesTen][TimesTen 11.2.1.8.0 CLIENT]Statement handle invalid due to client failover
+EOF
+echo xxxxxxxxxxxxxxxxxxxxxxxxxxxx
+
+step 300 "Activate standby node" <<EOF
+	echo \$stepId comment \$where >control
+	ttIsqlCS -v1 -e"call ttrepstateset('active'); call ttrepstateget; exit" "TTC_SERVER=$host2;TTC_SERVER_DSN=$dsn2;TCP_PORT=$serverport2;uid=adm;pwd=adm"
+EOF
+waitForStateChange $dsn2 $host2 $serverport2 ACTIVE
+
+step 310 "Reading data from master2 after failover"  <<EOF
+        echo \$stepId step >control
+EOF
+expectResponseOK <<EOF
+Step
+Host:$dsn2@$host2:$serverport2
+Status:ACTIVE
+Resp:X
+EOF
+
+step 400 "Recovering master active" <<EOF
+	echo \$stepId comment \$where >control
+EOF
+masterUp
+
+step 405 "Waiting for master1 state change to STANDBY" <<EOF
+        echo \$stepId comment \$where >control
+EOF
+waitForStateChange $dsn1 $host1 $serverport1 STANDBY
+
+step 410 "Reading data from master2"  <<EOF
+        echo \$stepId step >control
+EOF
+expectResponseOK <<EOF
+Step
+Host:$dsn2@$host2:$serverport2
+Status:ACTIVE
+Resp:X
+EOF
+
+step 500 "Connecting application to Standby-Active" <<EOF
+echo "\$stepId connect TTC_SERVER=$host1;TTC_SERVER_DSN=$dsn1;TCP_PORT=$serverport1;TTC_SERVER2=$host2;TTC_SERVER_DSN2=$dsn2;TCP_PORT2=$serverport2;uid=appuser;pwd=appuser" >control
+EOF
+expectResponseOK <<EOF
+Connection string:TTC_SERVER=$host1;TTC_SERVER_DSN=$dsn1;TCP_PORT=$serverport1;TTC_SERVER2=$host2;TTC_SERVER_DSN2=$dsn2;TCP_PORT2=$serverport2;uid=appuser;pwd=appuser
+Event listener removed from previuous connection
+EOF
+
+step 510 "Reading data from master2" <<EOF
+        echo \$stepId step >control
+EOF
+expectResponseOK <<EOF
+Step
+Host:$dsn2@$host2:$serverport2
+Status:ACTIVE
+Resp:X
+EOF
+
+
+step 600 "Setting master1 to active and master2 to standby" <<EOF
+	echo \$stepId comment \$where >control
+	ttIsqlCS -v1 -e"call ttRepSubscriberWait('_ACTIVESTANDBY','TTREP',,,60);exit" "TTC_SERVER=$host2;TTC_SERVER_DSN=$dsn2;TCP_PORT=$serverport2;uid=adm;pwd=adm"
+	ttIsqlCS -v1 -e"call ttrepstop; call ttrepdeactivate; exit" "TTC_SERVER=$host2;TTC_SERVER_DSN=$dsn2;TCP_PORT=$serverport2;uid=adm;pwd=adm"
+	ttIsqlCS -v1 -e"call ttrepstateset('ACTIVE'); exit" "TTC_SERVER=$host1;TTC_SERVER_DSN=$dsn1;TCP_PORT=$serverport1;uid=adm;pwd=adm"
+	ttIsqlCS -v1 -e"call ttrepstart;exit" "TTC_SERVER=$host2;TTC_SERVER_DSN=$dsn2;TCP_PORT=$serverport2;uid=adm;pwd=adm"
+EOF
+expectResponseOK <<EOF
+< 00 >
+EOF
+echoTab "|--waiting for master1 status change"; waitForStateChange $dsn1 $host1 $serverport1 ACTIVE
+echoTab "\--waiting for master2 status change"; waitForStateChange $dsn2 $host2 $serverport2 STANDBY
+
+step 610 "Reading data from master1 after switchover"  <<EOF
+        echo \$stepId step >control
+EOF
+expectResponseOK <<EOF
+Step
+Host:$dsn1@$host1:$serverport1
+Status:ACTIVE
+Resp:X
+EOF
+
+step 700 "Crashing master1" <<EOF
+	echo comment \$where >control
+EOF
+masterDown
+
+step 710 "Reading data after failure" <<EOF
+	echo \$stepId step >control
+EOF
+expectResponseError <<EOF
+Step
+Error:[TimesTen][TimesTen 11.2.1.8.0 CLIENT]Statement handle invalid due to client failover
+EOF
+
+echo xxxxxxxxxxxxxxxxxxxxxxxxxxxx
+expectFile info msg err <<EOF
+Step
+Error:[TimesTen][TimesTen 11.2.1.8.0 CLIENT]Statement handle invalid due to client failover
+EOF
+echo xxxxxxxxxxxxxxxxxxxxxxxxxxxx
+
+step 720 "Reading data after failure" <<EOF
+	echo \$stepId step >control
+EOF
+expectResponseError <<EOF
+Step
+Error:[TimesTen][TimesTen 11.2.1.8.0 ODBC Driver][TimesTen]TT0821: No readable checkpoint files.  OS error: 'No such file or directory'.  Consider connecting with Overwrite=1 to create new data store -- file "db.c", lineno 9722, procedure "sbDbConnect"
+EOF
+
+#echoTab "\--waiting longer than TTC_TIMEOUT"
+#spinner $TIMEOUT 0.1
+#echo Done.
+
+step 730 "Reading data after failure"  <<EOF
+	echo \$stepId step >control
+EOF
+expectResponseError <<EOF
+Step
+Error:General error
+EOF
+
+step 800 "Recovering master active" <<EOF
+	echo \$stepId comment \$where >control
+EOF
+masterUp
+
+step 810 "Activate master1 node" <<EOF
+	echo \$stepId comment \$where >control
+	ttIsqlCS -v1 -e"call ttrepstateset('active'); call ttrepstateget; exit" "TTC_SERVER=$host1;TTC_SERVER_DSN=$dsn1;TCP_PORT=$serverport1;uid=adm;pwd=adm"
+	ttIsqlCS -v1 -e"call ttrepstateget; exit" "TTC_SERVER=$host2;TTC_SERVER_DSN=$dsn2;TCP_PORT=$serverport2;uid=adm;pwd=adm"
+EOF
+expectResponseOK <<EOF
+< ACTIVE, NO GRID >
+< STANDBY, NO GRID >
+EOF
+
+step 820 "Reading data from active" <<EOF
+        echo \$stepId step >control
+EOF
+expectResponseError <<EOF
+Step
+Error:General error
+EOF
+
+step 900 "Application recreates connection" <<EOF
+echo "\$stepId connect TTC_SERVER=$host1;TTC_SERVER_DSN=$dsn1;TCP_PORT=$serverport1;TTC_SERVER2=$host2;TTC_SERVER_DSN2=$dsn2;TCP_PORT2=$serverport2;uid=appuser;pwd=appuser" >control
+EOF
+expectResponseOK <<EOF
+Connection string:TTC_SERVER=$host1;TTC_SERVER_DSN=$dsn1;TCP_PORT=$serverport1;TTC_SERVER2=$host2;TTC_SERVER_DSN2=$dsn2;TCP_PORT2=$serverport2;uid=appuser;pwd=appuser
+Event listener removed from previuous connection
+Warning: Not possible to close previous connection
+EOF
+
+step 910 "Reading data from master1" <<EOF
+        echo \$stepId step >control
+EOF
+expectResponseOK <<EOF
+Step
+Host:$dsn1@$host1:$serverport1
+Status:ACTIVE
+Resp:X
+EOF
+
+step 1000 "Finishing" <<EOF
+	echo \$stepId exit >control
+EOF
+expectResponseOK <<EOF
+Done.
+EOF
+

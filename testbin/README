@@ -1,0 +1,19 @@
+1. distribute test data on two different boxes
+bash distribute.sh -host1 ozone1 -dsn1 repdb1_1121 -user oracle -host2 ozone2 -dsn2 repdb2_1121 
+
+2. configure rep test on single box
+bash replicate.sh
+
+3. 
+scp  oracle@ozone1:~/failover/* .
+
+bash failoverTest.sh failureType=looseFiles
+#daemonDown
+#serverDown
+#looseFiles
+#networkDown
+#daemonDown
+
+4. 
+bash failoverTest.sh -deleteTimesTenLog YES -updateTimesTenLog YES -failureType invalidate
+
