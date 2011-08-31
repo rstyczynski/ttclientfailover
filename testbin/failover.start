@@ -3,6 +3,10 @@ eval $(echo $@ | sed "s/ -/;/g" | sed "s/^-//" | tr ' ' '=')
 
 echo "$0 $@" >$testId.log
 
+if [ -z "$testbin" ]; then
+  testbin=.
+fi
+
 . $testbin/common.h; . $testbin/test.h
 
 trap stop SIGHUP SIGINT SIGTERM SIGQUIT SIGSTOP
@@ -17,5 +21,8 @@ rm $testId* >/dev/null 2>&1
 ttDeleteLogsInSystem
 
 step=0
-java -classpath $testbin:$CLASSPATH:$(eval $(ttversion -m);echo $effective_insthome/lib) -d32 -jar $testbin/../dist/ttclientfailover.jar $testId < control >$testId.log 2>$testId.err &
+eval $(ttversion -m)
+cp $effective_insthome/lib/*.jar $testbin/../dist/lib
+java -classpath $testbin:$CLASSPATH $JAVA_OPTS -jar $testbin/../dist/ttclientfailover.jar $testId < control >$testId.log 2>$testId.err &
+
 

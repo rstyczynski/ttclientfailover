@@ -1,8 +1,8 @@
 #!/bin/bash
 
-. $testbin/failover.defaults
 . $testbin/test.h
 . $testbin/common.h
+readcfg failover.env
 
 testNo=0
 ssh root@$host2 "/usr/sbin/ntpdate -u $host1"

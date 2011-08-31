@@ -1,4 +1,4 @@
-declare -a progress=(\ \| - / -)
+declare -a progress=('\' '\|' '-' '/' '-')
 _mstep=0; _mstepmax=4
 
 function spinner {
@@ -134,7 +134,7 @@ SSH
       ssh $osuser@$host2mgm >/dev/null 2>&1 <<SSH &
         ttDaemonLog -msg "------------------ $testId:$stepId:$where --------------------------------"
 SSH
-        logpids+=" "$!
+        logpids="$logpids $!"
     fi
     #jobs
     #echo $logpids
@@ -207,7 +207,7 @@ function expectResponse {
 		echo -n ${progress[$_mstep]}
 		let _mstep++
 		if [ $_mstep -eq $_mstepmax ]; then _mstep=0; fi		
-		sleep 0.1
+		sleep 1  
 		echo -n ""
 		if [ -f $testId.$stepId.msg ]; then
 			done=YES
@@ -296,7 +296,7 @@ function expectFile {
                 echo -n ${progress[$_mstep]}
                 let _mstep++
                 if [ $_mstep -eq $_mstepmax ]; then _mstep=0; fi
-                sleep 0.1
+                sleep 1
                 echo -n ""
                 if [ -f $testId.$stepId.$ext ]; then
                         done=YES
@@ -423,7 +423,7 @@ function waitForStateChange {
 	_mstep=0
         while [ "$done" == "NO" ]; do
                 RepState=$(ttIsqlCS -v1 -e"call ttrepstateget; exit" "TTC_SERVER=$_host;TTC_SERVER_DSN=$_dsn;TCP_PORT=$_serverport;uid=adm;pwd=adm" 2>>$testId.$stepId.err | cut -f2 -d' ' | cut -f1 -d,)
-                RepStateList+="$RepState "
+                RepStateList="$RepStateList $RepState"
                 if [ "$RepState" == "$_state" ]; then
                         done=YES
 		fi
@@ -431,7 +431,7 @@ function waitForStateChange {
 		echo -n ${progress[$_mstep]}
                 let _mstep++
                 if [ $_mstep -eq $_mstepmax ]; then _mstep=0; fi
-                sleep 0.2
+                sleep 1 
                 echo -n ""
                 let cnt++
                 if [ $cnt -eq $TIMEOUT_SHORT ]; then

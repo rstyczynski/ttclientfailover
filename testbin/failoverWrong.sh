@@ -1,6 +1,6 @@
 #!/bin/bash
 
-. failover.defaults
+. $ttadmin/cfg/$ttadmin/cfg//cfg/failover.env
 . failover.start
 
 step 100 "Initializing test" <<EOF

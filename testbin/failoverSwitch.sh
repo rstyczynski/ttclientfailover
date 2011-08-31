@@ -1,6 +1,6 @@
 #!/bin/bash
 
-. failover.defaults
+readcfg failover.env
 . failover.start
 
 step 500 "Connecting application to A/S pair" <<EOF

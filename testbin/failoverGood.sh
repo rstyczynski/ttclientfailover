@@ -1,6 +1,6 @@
 #!/bin/bash
 
-. failover.defaults
+readcfg failover.env
 . failover.start
 
 step 10 "Synchronize clocks oh $host1, $host2" <<EOF
