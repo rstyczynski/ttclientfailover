@@ -15,10 +15,10 @@ EOF
 masterDown
 
 step 710 "Reading data after failure" <<EOF
-	echo \$stepId step >control
+	echo \$stepId select >control
 EOF
 expectResponse <<EOF
-Step
+Select
 EOF
 echoTab "\----checking expected exception"
 expectError <<EOF
@@ -26,10 +26,10 @@ class java.sql.SQLException	S1000	47137	[TimesTen][TimesTen 11.2.1.8.0 CLIENT]St
 EOF
 
 step 720 "Reading data after failure" <<EOF
-	echo \$stepId step >control
+	echo \$stepId select >control
 EOF
 expectResponse <<EOF
-Step
+Select
 EOF
 echoTab "\----checking expected execution time"
 expectStepTime between 57000 62000
@@ -44,10 +44,10 @@ EOF
 #echo Done.
 
 step 730 "Reading data after failure"  <<EOF
-	echo \$stepId step >control
+	echo \$stepId select >control
 EOF
 expectResponse <<EOF
-Step
+Select
 EOF
 echoTab "\----checking expected exception"
 expectError <<EOF
@@ -70,10 +70,10 @@ expectResponse <<EOF
 EOF
 
 step 820 "Reading data from active" <<EOF
-        echo \$stepId step >control
+        echo \$stepId select >control
 EOF
 expectResponse <<EOF
-Step
+Select
 EOF
 echoTab "\----checking expected exception"
 expectError <<EOF
@@ -88,10 +88,10 @@ Connected to:TTC_SERVER=$host1;TTC_SERVER_DSN=$dsn1;TCP_PORT=$serverport1;TTC_SE
 EOF
 
 step 910 "Reading data from master1" <<EOF
-        echo \$stepId step >control
+        echo \$stepId select >control
 EOF
 expectResponse <<EOF
-Step
+Select
 Host:$dsn1@$host1:$serverport1
 Status:ACTIVE
 Resp:X

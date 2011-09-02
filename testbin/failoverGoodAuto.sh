@@ -58,10 +58,10 @@ EOF
 masterDown
 
 step 210 "Reading data after failure" <<EOF
-	echo \$stepId step >control
+	echo \$stepId select >control
 EOF
 expectResponse <<EOF
-Step
+Select
 EOF
 echoTab "\----checking expected exception"
 expectError <<EOF
@@ -69,10 +69,10 @@ class java.sql.SQLException	S1000	47137	[TimesTen][TimesTen 11.2.1.8.0 CLIENT]St
 EOF
 
 step 300 "Reading data after failure" <<EOF
-	echo \$stepId step >control
+	echo \$stepId select >control
 EOF
 expectResponse <<EOF
-Step
+Select
 Host:$dsn2@$host2:$serverport2
 Status:ACTIVE
 Resp:X

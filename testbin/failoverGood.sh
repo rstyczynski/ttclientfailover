@@ -18,10 +18,10 @@ expectError <<EOF
 EOF
 
 step 110 "Reading data from active" <<EOF
-	echo \$stepId step >control
+	echo \$stepId select >control
 EOF
 expectResponse <<EOF
-Step
+Select
 Host:$dsn1@$host1:$serverport1
 Status:ACTIVE
 Resp:X
@@ -33,10 +33,10 @@ EOF
 masterDown master1
 
 step 210 "Reading data after failure" <<EOF
-	echo \$stepId step >control
+	echo \$stepId select >control
 EOF
 expectResponse <<EOF
-Step
+Select
 EOF
 echoTab "\----checking expected exception"
 expectError <<EOF
@@ -50,10 +50,10 @@ EOF
 waitForRemoteStateChange $dsn2 $host2 $serverport2 ACTIVE
 
 step 310 "Reading data from master2 after failover"  <<EOF
-        echo \$stepId step >control
+        echo \$stepId select >control
 EOF
 expectResponse <<EOF
-Step
+Select
 Host:$dsn2@$host2:$serverport2
 Status:ACTIVE
 Resp:X
@@ -70,10 +70,10 @@ EOF
 waitForRemoteStateChange $dsn1 $host1 $serverport1 STANDBY
 
 step 410 "Reading data from master2"  <<EOF
-        echo \$stepId step >control
+        echo \$stepId select >control
 EOF
 expectResponse <<EOF
-Step
+Select
 Host:$dsn2@$host2:$serverport2
 Status:ACTIVE
 Resp:X

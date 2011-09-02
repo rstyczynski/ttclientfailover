@@ -10,10 +10,10 @@ Connected to:TTC_SERVER=$host1;TTC_SERVER_DSN=$dsn1;TCP_PORT=$serverport1;TTC_SE
 EOF
 
 step 510 "Reading data from $dsn2@$host2 " <<EOF
-        echo \$stepId step >control
+        echo \$stepId select >control
 EOF
 expectResponse <<EOF
-Step
+Select
 Host:$dsn2@$host2:$serverport2
 Status:ACTIVE
 Resp:X
@@ -45,10 +45,10 @@ waitForRemoteStateChange $dsn2 $host2 $serverport2 STANDBY
 
 for stepNo in {610..615}; do
 step $stepNo "Reading data from $dsn1@$host1 after switchover"  <<EOF
-        echo \$stepId step >control
+        echo \$stepId select >control
 EOF
 expectResponse <<EOF
-Step
+Select
 Host:$dsn1@$host1:$serverport1
 Status:ACTIVE
 Resp:X
