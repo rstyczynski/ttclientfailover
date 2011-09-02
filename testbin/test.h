@@ -1,5 +1,5 @@
-declare -a progress=('\' '\|' '-' '/' '-')
-_mstep=0; _mstepmax=4
+declare -a progress=('.' 'o' 'O' 'o')
+_mstep=0; _mstepmax=3
 
 function spinner {
 stepmax=$1
@@ -318,7 +318,9 @@ function expectFile {
                                 diff $testId.$stepId.exp@$ext $testId.$stepId.$ext >$testId.$stepId.diff_$ext
                         fi
                         if [ $? -eq 0 ]; then
-                                echo "OK, $type: $(cat $testId.$stepId.exp@$ext | tr '\n' ' ')"  | tee -a $testId.$stepId.log
+				notes=$(cat $testId.$stepId.exp@$ext | tr '\n' ' ')
+				if [ -z "$notes" ]; then notes='(none)'; fi
+                                echo "OK, $type: $notes" | tee -a $testId.$stepId.log
                                 rm $testId.$stepId.diff_$ext
                                 if [ "$VERBOSE" == "YES" ]; then
                                         (
@@ -410,7 +412,7 @@ function testSummary {
 
 #---
 
-function waitForStateChange {
+function waitForRemoteStateChange {
         _state=$4
         _dsn=$1
         _host=$2
@@ -483,20 +485,18 @@ function masterDown {
 		;;
  esac
 
-
  where="Progress, info: crashing TimesTen"
  case "$failureType" in
    invalidate)
-        echoTab "$where - hiding files" | tee -a $testId.$stepId.log
+        echoTab "$where - hiding files, killing processes" | tee -a $testId.$stepId.log
         dsnfile=$(ttIsqlCS -e 'call ttconfiguration; exit' "TTC_SERVER=$_host;TTC_SERVER_DSN=$_dsn;TCP_PORT=$_serverport;uid=adm;pwd=adm"  | grep DataStore, | cut -f3 -d ' ')
-        ssh -q $osuser@$_hostmgm >/dev/null 2>&1 <<SSH
+        ssh $osuser@$_hostmgm &>/dev/null <<SSH
                 mv $dsnfile.ds0 $dsnfile.ds0X
                 mv $dsnfile.ds1 $dsnfile.ds1X
-                dsn=$_dsn
-                pids=\$(dsnstatus | grep 0x | grep -v KEY | tr -s ' ' | cut -d ' ' -f2 | sort -u)
+                pids=\$(ttstatus | sed -n /$_dsn/,/-----/p | grep 0x | grep -v KEY | tr -s ' ' | cut -d ' ' -f2 | sort -u)
                 kill -9 \$pids
 SSH
-        echo Done.
+	echo Done.
         ;;
    serverDown)
         echoTab "$where - stoping server" | tee -a $testId.$stepId.log

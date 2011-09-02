@@ -1,13 +1,21 @@
-#Parse parameters. echo pair of '-parameter value' will be executed as 'parameter=value'. Parameter will be available in script as $parameter
-eval $(echo $@ | sed "s/ -/;/g" | sed "s/^-//" | tr ' ' '=')
-
-echo "$0 $@" >$testId.log
-
 if [ -z "$testbin" ]; then
   testbin=.
 fi
 
+if [ -z "$ttadmin_home" ]; then
+	cd $testbin
+	export ttadmin_home=$PWD
+	cd - &>/dev/null
+fi
+
 . $testbin/common.h; . $testbin/test.h
+
+readcfg failover.env
+
+#Parse parameters. echo pair of '-parameter value' will be executed as 'parameter=value'. Parameter will be available in script as $parameter
+eval $(echo $@ | sed "s/ -/;/g" | sed "s/^-//" | tr ' ' '=')
+
+echo "$0 $@" >$testId.log
 
 trap stop SIGHUP SIGINT SIGTERM SIGQUIT SIGSTOP
 
@@ -15,14 +23,16 @@ rm control &>/dev/null
 mkfifo control &>/dev/null
 
 if [ ! -d "$tmp" ]; then tmp=/tmp; fi
-rm $tmp/*$testId* >/dev/null 2>&1
-rm $testId* >/dev/null 2>&1
+#rm $tmp/*$testId* >/dev/null 2>&1
+#rm $testId* >/dev/null 2>&1
 
 ttDeleteLogsInSystem
 
-step=0
-eval $(ttversion -m)
-cp $effective_insthome/lib/*.jar $testbin/../dist/lib
-java -classpath $testbin:$CLASSPATH $JAVA_OPTS -jar $testbin/../dist/ttclientfailover.jar $testId < control >$testId.log 2>$testId.err &
-
+if [ -d $testbin/../dist/lib ]; then
+ step=0
+ echo $PATH
+ eval $(ttversion -m)
+ cp $effective_insthome/lib/*.jar $testbin/../dist/lib
+ java -classpath $testbin:$CLASSPATH $JAVA_OPTS -jar $testbin/../dist/ttclientfailover.jar $testId < control >$testId.log 2>$testId.err &
+fi
 

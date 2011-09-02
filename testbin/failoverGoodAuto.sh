@@ -1,6 +1,5 @@
 #!/bin/bash
 
-readcfg failover.env
 . failover.start
 
 function stop {
@@ -15,7 +14,7 @@ step 100 "Initializing test" <<EOF
 echo "\$stepId connect TTC_SERVER=$host1;TTC_SERVER_DSN=$dsn1;TCP_PORT=$serverport1;TTC_SERVER2=$host2;TTC_SERVER_DSN2=$dsn2;TCP_PORT2=$serverport2;uid=appuser;pwd=appuser" >control
 EOF
 expectResponse <<EOF
-Connection string:TTC_SERVER=$host1;TTC_SERVER_DSN=$dsn1;TCP_PORT=$serverport1;TTC_SERVER2=$host2;TTC_SERVER_DSN2=$dsn2;TCP_PORT2=$serverport2;uid=appuser;pwd=appuser
+Connected to:TTC_SERVER=$host1;TTC_SERVER_DSN=$dsn1;TCP_PORT=$serverport1;TTC_SERVER2=$host2;TTC_SERVER_DSN2=$dsn2;TCP_PORT2=$serverport2;uid=appuser;pwd=appuser
 EOF
 
 errorlog=$PWD/$testId.log
@@ -89,7 +88,7 @@ masterUp
 step 410 "Waiting for master1 to be Standby" <<EOF
         echo \$stepId comment \$where >control
 EOF
-waitForStateChange $dsn1 $host1 $serverport1 STANDBY
+waitForRemoteStateChange $dsn1 $host1 $serverport1 STANDBY
 
 step 1000 "Finishing" <<EOF
 	echo \$stepId exit >control

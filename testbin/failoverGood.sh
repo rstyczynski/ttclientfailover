@@ -1,6 +1,5 @@
 #!/bin/bash
 
-readcfg failover.env
 . failover.start
 
 step 10 "Synchronize clocks oh $host1, $host2" <<EOF
@@ -12,7 +11,10 @@ step 100 "Initializing test" <<EOF
 echo "\$stepId connect TTC_SERVER=$host1;TTC_SERVER_DSN=$dsn1;TCP_PORT=$serverport1;TTC_SERVER2=$host2;TTC_SERVER_DSN2=$dsn2;TCP_PORT2=$serverport2;uid=appuser;pwd=appuser" >control
 EOF
 expectResponse <<EOF
-Connection string:TTC_SERVER=$host1;TTC_SERVER_DSN=$dsn1;TCP_PORT=$serverport1;TTC_SERVER2=$host2;TTC_SERVER_DSN2=$dsn2;TCP_PORT2=$serverport2;uid=appuser;pwd=appuser
+Connected to:TTC_SERVER=$host1;TTC_SERVER_DSN=$dsn1;TCP_PORT=$serverport1;TTC_SERVER2=$host2;TTC_SERVER_DSN2=$dsn2;TCP_PORT2=$serverport2;uid=appuser;pwd=appuser
+EOF
+echoTab "\----checking expected exception"
+expectError <<EOF
 EOF
 
 step 110 "Reading data from active" <<EOF
@@ -28,7 +30,7 @@ EOF
 step 200 "Crashing master1" <<EOF
 	echo \$stepId comment \$where >control
 EOF
-masterDown
+masterDown master1
 
 step 210 "Reading data after failure" <<EOF
 	echo \$stepId step >control
@@ -45,7 +47,7 @@ step 300 "Activate standby node" <<EOF
 	echo \$stepId comment \$where >control
 	ttIsqlCS -v1 -e"call ttrepstateset('active'); call ttrepstateget; exit" "TTC_SERVER=$host2;TTC_SERVER_DSN=$dsn2;TCP_PORT=$serverport2;uid=adm;pwd=adm"
 EOF
-waitForStateChange $dsn2 $host2 $serverport2 ACTIVE
+waitForRemoteStateChange $dsn2 $host2 $serverport2 ACTIVE
 
 step 310 "Reading data from master2 after failover"  <<EOF
         echo \$stepId step >control
@@ -65,7 +67,7 @@ masterUp
 step 405 "Waiting for master1 state change to STANDBY" <<EOF
         echo \$stepId comment \$where >control
 EOF
-waitForStateChange $dsn1 $host1 $serverport1 STANDBY
+waitForRemoteStateChange $dsn1 $host1 $serverport1 STANDBY
 
 step 410 "Reading data from master2"  <<EOF
         echo \$stepId step >control

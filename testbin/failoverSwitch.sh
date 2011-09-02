@@ -1,13 +1,12 @@
 #!/bin/bash
 
-readcfg failover.env
 . failover.start
 
 step 500 "Connecting application to A/S pair" <<EOF
 echo "\$stepId connect TTC_SERVER=$host1;TTC_SERVER_DSN=$dsn1;TCP_PORT=$serverport1;TTC_SERVER2=$host2;TTC_SERVER_DSN2=$dsn2;TCP_PORT2=$serverport2;uid=appuser;pwd=appuser" >control
 EOF
 expectResponse <<EOF
-Connection string:TTC_SERVER=$host1;TTC_SERVER_DSN=$dsn1;TCP_PORT=$serverport1;TTC_SERVER2=$host2;TTC_SERVER_DSN2=$dsn2;TCP_PORT2=$serverport2;uid=appuser;pwd=appuser
+Connected to:TTC_SERVER=$host1;TTC_SERVER_DSN=$dsn1;TCP_PORT=$serverport1;TTC_SERVER2=$host2;TTC_SERVER_DSN2=$dsn2;TCP_PORT2=$serverport2;uid=appuser;pwd=appuser
 EOF
 
 step 510 "Reading data from $dsn2@$host2 " <<EOF
@@ -35,13 +34,13 @@ step 601 "Switchover: setting $dsn1@$host1 to ACTIVE" <<EOF
         echo \$stepId comment \$where >control
 	ttIsqlCS -v1 -e"call ttrepstateset('ACTIVE'); exit" "TTC_SERVER=$host1;TTC_SERVER_DSN=$dsn1;TCP_PORT=$serverport1;uid=adm;pwd=adm"
 EOF
-waitForStateChange $dsn1 $host1 $serverport1 ACTIVE
+waitForRemoteStateChange $dsn1 $host1 $serverport1 ACTIVE
 
 step 602 "Switchover: setting $dsn2@$host2 to STANDBY" <<EOF
         echo \$stepId comment \$where >control
 	ttIsqlCS -v1 -e"call ttrepstart;exit" "TTC_SERVER=$host2;TTC_SERVER_DSN=$dsn2;TCP_PORT=$serverport2;uid=adm;pwd=adm"
 EOF
-waitForStateChange $dsn2 $host2 $serverport2 STANDBY
+waitForRemoteStateChange $dsn2 $host2 $serverport2 STANDBY
 
 
 for stepNo in {610..615}; do

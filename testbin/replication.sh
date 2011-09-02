@@ -78,7 +78,7 @@ runSQL "5. Set the replication state to Active" <<EOF
 	call ttrepstateset ('active');
 	call ttrepstateget;
 EOF
-waitForStateChange ACTIVE
+waitForRemoteStateChange ACTIVE
 
 readcfg $tmp/replication2.env
 echoTab "6. Duplicate the active database to the standby"; echo
@@ -106,7 +106,7 @@ runSQL "7. Start the replication agent" <<EOF
 	connect "dsn=$dsn;uid=adm;pwd=adm";
 	call ttrepstart;
 EOF
-waitForStateChange STANDBY
+waitForRemoteStateChange STANDBY
 
 runSQL "8. Verify the data is being replicated between the active and the standby" <<EOF
 	disconnect;

@@ -1,7 +1,15 @@
 #!/bin/bash
 
-if [ -f $(dirname $0)/../cfg/failover.env ]; then . $(dirname $0)/../cfg/failover.env; fi
-if [ -f cfg/failover.env ];then . cfg/failover.env; fi
+. failover.start
+if [ $? -ne 0 ]; then
+  if [ -f failover.start ]; then cd ..;export testbin=$PWD;cd -; fi
+  if [ -f /tmp/ttadmin/bin/failover.start ]; then 
+	export testbin=/tmp/ttadmin/bin
+	export ttadmin_home=/tmp/ttadmin	
+  fi
+  PATH=$testbin:$PATH
+  . failover.start
+fi
 
 #read parameters
 eval $(echo $@ | sed "s/ -/;/g" | sed "s/^-//" | tr ' ' '=')
@@ -19,7 +27,7 @@ if [ "$mode" == "" ]; then
 	echo -----------------------------------------------------
         for host in $host1 $host2; do
           ssh $osuser@$host "mkdir /tmp/ttadmin /tmp/ttadmin/bin /tmp/ttadmin/log /tmp/ttadmin/cfg" 
-          scp $testbin/*.sh $testbin/*.h $osuser@$host:/tmp/ttadmin/bin
+          scp $testbin/*.sh $testbin/*.h $testbin/*.start $osuser@$host:/tmp/ttadmin/bin
           scp $testbin/cfg/* $osuser@$host:/tmp/ttadmin/cfg
         done
 	echo -----------------------------------------------------
@@ -32,6 +40,9 @@ if [ "$mode" == "" ]; then
 	echo III. Executing locally...
 	echo -----------------------------------------------------
         ssh $osuser@$host1 <<EOF
+		export ttadmin_home=/tmp/ttadmin
+		export testbin=/tmp/ttadmin/bin
+                PATH=\$testbin:\$PATH
 	        bash /tmp/ttadmin/bin/$(basename $0) $@ -mode local
 EOF
 	echo -----------------------------------------------------
@@ -39,6 +50,9 @@ EOF
         echo Note: you may be asked for ssh password
 	echo -----------------------------------------------------
 	ssh $osuser@$host2 <<EOF
+		export ttadmin_home=/tmp/ttadmin
+		export testbin=/tmp/ttadmin/bin
+		PATH=\$testbin:\$PATH
 		bash /tmp/ttadmin/bin/$(basename $0) $@ -mode remote
 EOF
 	exit
@@ -170,7 +184,6 @@ runSQL "7. Start the replication agent" <<EOF
         connect "dsn=$dsn;uid=adm;pwd=adm";
         call ttrepstart;
 EOF
-
 waitForStateChange STANDBY
 
 runSQL "8. Verify the data is being replicated" <<EOF

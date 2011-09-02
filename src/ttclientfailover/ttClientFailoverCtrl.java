@@ -113,7 +113,6 @@ public class ttClientFailoverCtrl {
                                 throw new Exception("Connection string not specified");
                             }
                             String conStr = lineTokens[tokenPos];
-                            log.msg("Connection string:" + conStr);
 
                             HashMap conAttr = new HashMap();
                             String connElements[] = conStr.split(";");
@@ -151,14 +150,20 @@ public class ttClientFailoverCtrl {
                                 }
                             }
 
-                            Class clsDriver;
-                            clsDriver = Class.forName("com.timesten.jdbc.TimesTenDriver");
-                            Driver driver = (Driver) clsDriver.newInstance();
-                            DriverManager.registerDriver(driver);
-
-                            connection = (TimesTenConnection) DriverManager.getConnection(ttURL, ttUID, ttPWD);
-                            notify.setLog(testId + "-notify", "msg", System.out);
-                            connection.addConnectionEventListener(notify);
+                            try {
+                                Class clsDriver;
+                                clsDriver = Class.forName("com.timesten.jdbc.TimesTenDriver");
+                                Driver driver = (Driver) clsDriver.newInstance();
+                                DriverManager.registerDriver(driver);
+                                
+                                connection = (TimesTenConnection) DriverManager.getConnection(ttURL, ttUID, ttPWD);
+                                notify.setLog(testId + "-notify", "msg", System.out);
+                                connection.addConnectionEventListener(notify);
+                            } catch (Exception ex) {
+                                log.msg("Error, info:" + ex.getMessage());
+                                throw ex;
+                            }
+                            log.msg("Connected to:" + conStr);
 
                             //TODO: this is not returned by ttConfiguration
                             //check if client failover is configured
@@ -181,8 +186,8 @@ public class ttClientFailoverCtrl {
                             bufferedStmt = connection.createStatement();
                             log.msg("Statement initialized");
                             break;
-                        case QUICK://quick
-                            log.msg("Quick step");
+                        case PREPARED://quick
+                            log.msg("Prepared select");
                             log.msg("Host:" + me.getHost(connection));
                             log.msg("Status:" + me.getRepStatus(connection));
                             
@@ -195,8 +200,8 @@ public class ttClientFailoverCtrl {
                         case UNKNOWN:
                             log.msg("Unknown command:'" + cmd + "'. Executing step.");
                             //break;
-                        case STEP://step
-                            log.msg("Step");
+                        case SELECT://step
+                            log.msg("Select");
                             log.msg("Host:" + me.getHost(connection));
                             log.msg("Status:" + me.getRepStatus(connection));
                             
@@ -273,8 +278,8 @@ public class ttClientFailoverCtrl {
     HashMap cmdDir = new HashMap();
 
     public ttClientFailoverCtrl() {
-        cmdDir.put("step", STEP);
-        cmdDir.put("quick", QUICK);
+        cmdDir.put("select", SELECT);
+        cmdDir.put("quick", PREPARED);
         cmdDir.put("init", INIT);
         cmdDir.put("?", HELP);
         cmdDir.put("help", HELP);
@@ -298,7 +303,7 @@ public class ttClientFailoverCtrl {
     static final int CFG = 5;
     static final int CONNECT = 4;
     static final int INIT = 3;
-    static final int QUICK = 2;
-    static final int STEP = 1;
+    static final int PREPARED = 2;
+    static final int SELECT = 1;
     static final int UNKNOWN = -1;
 }
