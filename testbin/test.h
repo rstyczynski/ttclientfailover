@@ -280,7 +280,7 @@ function expectResponse {
 }
 
 function expectError {
-	expectFile error err
+	expectFile error exc
 }
 
 function expectFile {

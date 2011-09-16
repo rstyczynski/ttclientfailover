@@ -54,7 +54,7 @@ public class ttClientFailoverCtrl {
         log.logExt="msg";
         Log err = new Log();
         err.console=System.err;
-        err.logExt="err";
+        err.logExt="exc";
         
         //cmdFD = new BufferedReader(new InputStreamReader(new FileInputStream(cmdFIFO)));
         cmdFD = new BufferedReader(new InputStreamReader(System.in));
@@ -269,7 +269,7 @@ public class ttClientFailoverCtrl {
                     err.msg(error);
                     log.msg(error, false);               
                 } catch (Exception a) {
-                    error = a.getClass() + "\t" + a.getMessage() + "@" + a.getStackTrace();
+                    error = a.getClass() + "\t" + a.getMessage() + "@" + a.getStackTrace()[0];
                     err.msg(error);
                     log.msg(error, false);
                 }

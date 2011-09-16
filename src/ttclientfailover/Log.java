@@ -18,6 +18,7 @@ public class Log {
 long lastLog=0;
 long deltaLog=0;
 long now=0;
+File filetmp;
 FileWriter fileLog;
 String logName; 
 String logExt;
@@ -36,8 +37,8 @@ public void create(String _name) throws Exception {
 public void create(String _name, String _msg) throws Exception {
     logName = _name;
     logNameTmp = logName + "." + logExt + ".tmp";
-    File file = new File(logNameTmp);
-    file.createNewFile();
+    filetmp = new File(logNameTmp);
+    filetmp.createNewFile();
     fileLog = new FileWriter(logNameTmp);
     timer.start();
     msg(_msg,false);
@@ -55,7 +56,6 @@ public void close(String _msg) throws Exception {
    fileLog.close();
    fileLog = null;
    
-   File filetmp = new File(logNameTmp);
    File file = new File(logName + "." + logExt);
    filetmp.renameTo(file);
 

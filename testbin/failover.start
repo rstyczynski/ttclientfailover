@@ -31,16 +31,16 @@ if [ "$startapp" != "NO" ]; then
  step=0
 
  #copying tt libraries from current installation will overwrite jars packed into ttclientfailover.jar on development system
- #skipped as timesten libs should not be packed
  #if [ ! -d $testbin/lib ]; then mkdir $testbin/lib; fi
  #eval $(ttversion -m)
+ #rm -f ../testbin/lib/*
  #cp $effective_insthome/lib/*.jar $testbin/lib
 
  #copy latest jar if executed on dev system
- if [ -d $testbin/../dist/ttclientfailover.jar ]; then
-   cp $testbin/../dist/ttclientfailover.jar $testbin/ttclientfailover.jar
+ if [ -f $testbin/../dist/ttclientfailover.jar ]; then
+   cp $testbin/../dist/ttclientfailover.jar $testbin
  fi
  
- java -classpath $testbin/lib:$CLASSPATH $JAVA_OPTS -jar $testbin/ttclientfailover.jar $testId < control >$testId.log 2>$testId.err &
+ java $JAVA_OPTS -jar $testbin/ttclientfailover.jar $testId < control >$testId.log 2>$testId.err &
 fi
 
