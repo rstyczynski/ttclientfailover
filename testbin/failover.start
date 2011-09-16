@@ -1,11 +1,10 @@
 if [ -z "$testbin" ]; then
-  testbin=.
+  echo Environment not configured. Set testbin to directory with test scripts. Exiting...
+  exit 1 
 fi
 
 if [ -z "$ttadmin_home" ]; then
-	cd $testbin
-	export ttadmin_home=$PWD
-	cd - &>/dev/null
+	export ttadmin_home=$testbin
 fi
 
 . $testbin/common.h; . $testbin/test.h
@@ -28,11 +27,20 @@ if [ ! -d "$tmp" ]; then tmp=/tmp; fi
 
 ttDeleteLogsInSystem
 
-if [ -d $testbin/../dist/lib ]; then
+if [ "$startapp" != "NO" ]; then
  step=0
- echo $PATH
- eval $(ttversion -m)
- cp $effective_insthome/lib/*.jar $testbin/../dist/lib
- java -classpath $testbin:$CLASSPATH $JAVA_OPTS -jar $testbin/../dist/ttclientfailover.jar $testId < control >$testId.log 2>$testId.err &
+
+ #copying tt libraries from current installation will overwrite jars packed into ttclientfailover.jar on development system
+ #skipped as timesten libs should not be packed
+ #if [ ! -d $testbin/lib ]; then mkdir $testbin/lib; fi
+ #eval $(ttversion -m)
+ #cp $effective_insthome/lib/*.jar $testbin/lib
+
+ #copy latest jar if executed on dev system
+ if [ -d $testbin/../dist/ttclientfailover.jar ]; then
+   cp $testbin/../dist/ttclientfailover.jar $testbin/ttclientfailover.jar
+ fi
+ 
+ java -classpath $testbin/lib:$CLASSPATH $JAVA_OPTS -jar $testbin/ttclientfailover.jar $testId < control >$testId.log 2>$testId.err &
 fi
 

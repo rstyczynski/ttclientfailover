@@ -345,9 +345,10 @@ function absoluteDir {
 
  file=$1
  dir=$(dirname $file)
+ oldPWD=$PWD
  cd $dir
  absolutedir=$PWD
- cd - >/dev/null
+ cd $oldPWD
  echo $absolutedir
 }
 

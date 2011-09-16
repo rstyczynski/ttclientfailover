@@ -30,7 +30,11 @@ public class ttClientFailoverCtrl {
         String ttUID = null;
         String ttPWD = null;
         HashMap ttCfg = null;
-        String ttSQL = "select * from dual";
+        String connectionString="TTC_SERVER=ozone1;TTC_SERVER_DSN=repdb1_1121;TCP_PORT=53389;TTC_SERVER2=ozone2;TTC_SERVER_DSN2=repdb2_1121;TCP_PORT2=53385;uid=appuser;pwd=appuser";
+        String ttSelectSQL = "select * from dual";
+        String ttInsertSQL = "insert into customers values (PK,'a','b','c')";
+        String ttDeleteSQL = "delete from customers where cust_number=PK";
+        String ttUpdateSQL = "update customers set address='VALUE' where cust_number=PK";
 
         TimesTenConnection connection = null;
         ttClientFailoverNotify notify = new ttClientFailoverNotify();
@@ -43,7 +47,6 @@ public class ttClientFailoverCtrl {
         String lineTokens[];
 
         Statement bufferedStmt = null;
-        ResultSet rs = null;
         String response = null;
         
         Log log = new Log();
@@ -191,27 +194,65 @@ public class ttClientFailoverCtrl {
                             log.msg("Host:" + me.getHost(connection));
                             log.msg("Status:" + me.getRepStatus(connection));
                             
-                            rs = bufferedStmt.executeQuery(ttSQL);
+                            ResultSet rs = bufferedStmt.executeQuery(ttSelectSQL);
                             rs.next();
                             response = rs.getString(1);
                             log.msg("Resp:" + response);
                             rs.close();
                             break;
                         case UNKNOWN:
-                            log.msg("Unknown command:'" + cmd + "'. Executing step.");
-                            //break;
+                            log.msg("Unknown command:'" + cmd);
+                            break;
+                            
+                        case UPDATE://step
+                            String updateValue;
+                            String updatePK;
+                            if (lineTokens.length < (tokenPos+2)) {
+                                throw new Exception("Update PK and VALUE string not specified");
+                            }
+                            updatePK=lineTokens[tokenPos];
+                            updateValue=lineTokens[tokenPos+1];
+                            
+                            log.msg("Update");
+                            log.msg("Host:" + me.getHost(connection));
+                            log.msg("Status:" + me.getRepStatus(connection));
+                            
+                            Statement oneTimeUpdateStmt = connection.createStatement();
+                            oneTimeUpdateStmt.executeQuery(ttUpdateSQL.replaceFirst("PK", updatePK).replaceFirst("VALUE", updateValue));
+                            int rowUpdateCount = oneTimeUpdateStmt.getUpdateCount();
+                            log.msg("Resp:" + rowUpdateCount);
+                            oneTimeUpdateStmt.close();
+                            break;
+                        
+                        case INSERT://step
+                            String insertValue;
+                            if (lineTokens.length < (tokenPos+1)) {
+                                throw new Exception("Insert value string not specified");
+                            }
+                            insertValue=lineTokens[tokenPos];
+                            
+                            log.msg("Insert");
+                            log.msg("Host:" + me.getHost(connection));
+                            log.msg("Status:" + me.getRepStatus(connection));
+                            
+                            Statement oneTimeStmt = connection.createStatement();
+                            oneTimeStmt.executeQuery(ttInsertSQL.replaceFirst("PK", insertValue));
+                            int rowCount = oneTimeStmt.getUpdateCount();
+                            log.msg("Resp:" + rowCount);
+                            oneTimeStmt.close();
+                            break;
                         case SELECT://step
                             log.msg("Select");
                             log.msg("Host:" + me.getHost(connection));
                             log.msg("Status:" + me.getRepStatus(connection));
                             
-                            Statement oneTimeStmt = connection.createStatement();
-                            rs = oneTimeStmt.executeQuery(ttSQL);
-                            rs.next();
-                            response = rs.getString(1);
+                            Statement oneTimeSelectStmt = connection.createStatement();
+                            ResultSet rsSelect = oneTimeSelectStmt.executeQuery(ttSelectSQL);
+                            rsSelect.next();
+                            response = rsSelect.getString(1);
                             log.msg("Resp:" + response);
-                            rs.close();
-                            oneTimeStmt.close();
+                            rsSelect.close();
+                            oneTimeSelectStmt.close();
                             break;
                         case HELP://help
                             log.msg("Available commands:" + me.cmdDir.keySet());
@@ -228,7 +269,7 @@ public class ttClientFailoverCtrl {
                     err.msg(error);
                     log.msg(error, false);               
                 } catch (Exception a) {
-                    error = a.getClass() + "\t" + a.getMessage();
+                    error = a.getClass() + "\t" + a.getMessage() + "@" + a.getStackTrace();
                     err.msg(error);
                     log.msg(error, false);
                 }
@@ -254,6 +295,7 @@ public class ttClientFailoverCtrl {
     }
 
     public String getHost(Connection connection) throws Exception {
+        
         Statement stmt = connection.createStatement();
         ResultSet rs = stmt.executeQuery("select value from nodeinfo where key='dsn@host:serverport'");
         rs.next();
@@ -278,6 +320,10 @@ public class ttClientFailoverCtrl {
     HashMap cmdDir = new HashMap();
 
     public ttClientFailoverCtrl() {
+        //cmdDir.put("sql", SQL);
+        //mdDir.put("insert", DELETE);
+        cmdDir.put("update", UPDATE);
+        cmdDir.put("insert", INSERT);
         cmdDir.put("select", SELECT);
         cmdDir.put("quick", PREPARED);
         cmdDir.put("init", INIT);
@@ -300,10 +346,14 @@ public class ttClientFailoverCtrl {
     static final int HELP = 99;
     static final int COMMENT = 98;
     
-    static final int CFG = 5;
-    static final int CONNECT = 4;
-    static final int INIT = 3;
-    static final int PREPARED = 2;
+    static final int CFG = 50;
+    static final int CONNECT = 40;
+    static final int INIT = 30;
+    static final int PREPARED = 20;
+    static final int SQL = 5;
+    static final int DELETE = 4;
+    static final int UPDATE = 3;
+    static final int INSERT = 2;
     static final int SELECT = 1;
     static final int UNKNOWN = -1;
 }

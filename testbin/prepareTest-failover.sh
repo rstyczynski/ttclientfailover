@@ -1,17 +1,17 @@
 #!/bin/bash
 
-. failover.start
+. failover.start -deleteTimesTenLog NO -startapp NO
 if [ $? -ne 0 ]; then
   if [ -f failover.start ]; then cd ..;export testbin=$PWD;cd -; fi
   if [ -f /tmp/ttadmin/bin/failover.start ]; then 
 	export testbin=/tmp/ttadmin/bin
-	export ttadmin_home=/tmp/ttadmin	
+	export ttadmin_home=/tmp/ttadmin
   fi
   PATH=$testbin:$PATH
-  . failover.start
+  . failover.start -deleteTimesTenLog NO -startapp NO
 fi
 
-#read parameters
+#Parse parameters. echo pair of '-parameter value' will be executed as 'parameter=value'. Parameter will be available in script as $parameter
 eval $(echo $@ | sed "s/ -/;/g" | sed "s/^-//" | tr ' ' '=')
 
 #check parameters
@@ -30,6 +30,7 @@ if [ "$mode" == "" ]; then
           scp $testbin/*.sh $testbin/*.h $testbin/*.start $osuser@$host:/tmp/ttadmin/bin
           scp $testbin/cfg/* $osuser@$host:/tmp/ttadmin/cfg
         done
+
 	echo -----------------------------------------------------
         echo II. Setting time at $host1, $host2 
         echo Note: you may be asked for ssh password
@@ -37,7 +38,7 @@ if [ "$mode" == "" ]; then
 	ssh $osuser@$host1 "/usr/sbin/ntpdate -s -b -p 8 -u 129.132.2.21"
 	ssh $osuser@$host2 "/usr/sbin/ntpdate -s -b -p 8 -u $host1"
 	echo -----------------------------------------------------
-	echo III. Executing locally...
+	echo III. Executing at master active: $host1...
 	echo -----------------------------------------------------
         ssh $osuser@$host1 <<EOF
 		export ttadmin_home=/tmp/ttadmin
@@ -46,7 +47,7 @@ if [ "$mode" == "" ]; then
 	        bash /tmp/ttadmin/bin/$(basename $0) $@ -mode local
 EOF
 	echo -----------------------------------------------------
-	echo IV. Executing remotely...
+	echo IV. Executing at master standby: $host2...
         echo Note: you may be asked for ssh password
 	echo -----------------------------------------------------
 	ssh $osuser@$host2 <<EOF
@@ -130,6 +131,7 @@ runSQL "5. Set the replication state to Active" <<EOF
 EOF
 waitForStateChange ACTIVE
 
+echo CCC
 runSQL "Prepare data to verify that replication works" <<EOF
         disconnect;
         connect "dsn=$dsn1;uid=appuser;pwd=appuser";
@@ -137,7 +139,9 @@ runSQL "Prepare data to verify that replication works" <<EOF
         insert into orders values (6853180,1121,'9999999999', sysdate);
         commit;
 EOF
-
+echo XXXx
+	exit
+echo VVV
 fi #end of local execution
 
 if [ "$mode" == "remote" ]; then
@@ -193,7 +197,10 @@ runSQL "8. Verify the data is being replicated" <<EOF
         insert into orders_ref values (6853180);
         commit;
 EOF
+	exit
 fi #end of remote execution
 
-rm -fr /tmp/ttadmin
+#do not delete it! it's requred to run scripts!
+#rm -fr /tmp/ttadmin
+
 

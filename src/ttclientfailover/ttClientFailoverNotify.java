@@ -37,20 +37,19 @@ public class ttClientFailoverNotify implements ClientFailoverEventListener {
                 case BEGIN:
                     timer.start();
                     counter++;
-                    log.create(logName + "-" + counter, now+ "\t" + "Failover " + counter + ":" + event + "\t" + timer.getTimeInMs());
-                    
+                    log.create(logName + "-" + counter);
                     timer.stop();
-//                    log.msg(now+ "\t" + "Failover " + counter + ":" + event + "\t" + timer.getTimeInMs());
+                    log.msg(now+ "\t" + "Failover " + counter + ":" + event + "\t" + timer.getTimeInMs());
                     break;
                 case END:
                     timer.stop();
-                    //log.msg(now+ "\t" + "Failover " + counter + ":" + event + "\t" + timer.getTimeInMs());
-                    log.close(now+ "\t" + "Failover " + counter + ":" + event + "\t" + timer.getTimeInMs());
+                    log.msg(now+ "\t" + "Failover " + counter + ":" + event + "\t" + timer.getTimeInMs());
+                    log.close();
                     break;
                 case ABORT:
                     timer.stop();
-                    //log.msg(now+ "\t" + "Failover " + counter + ":" + event + "\t" + timer.getTimeInMs());
-                    log.close(now+ "\t" + "Failover " + counter + ":" + event + "\t" + timer.getTimeInMs());
+                    log.msg(now+ "\t" + "Failover " + counter + ":" + event + "\t" + timer.getTimeInMs());
+                    log.close();
                     break;
                 case REAUTH:
                     timer.stop();

@@ -613,22 +613,27 @@ function ttDeleteLog {
 
   ssh $_user@$_host >/dev/null 2>&1 <<SSH &
      eval \$(ttversion -m)
-     userlog=\$(cat \$effective_daemonhome/ttendaemon.options | grep '^\w*-userlog' | cut -f2 -d' ')
+     userlog=\$(cat \$effective_daemonhome/ttendaemon.options | grep '^\w*-userlog' | cut -f2 -d' ' | cut -f1 -d'.')
      if [ "\$userlog" == "" ]; then
-        userlog=\$effective_daemonhome/tterrors.log
-        supportlog=\$effective_daemonhome/ttmesg.log
+        userlog=\$effective_daemonhome/tterrors
+        supportlog=\$effective_daemonhome/ttmesg
      fi
-     supportlog=\$(cat \$effective_daemonhome/ttendaemon.options | grep '^\w*-supportlog' | cut -f2 -d' ')
+     supportlog=\$(cat \$effective_daemonhome/ttendaemon.options | grep '^\w*-supportlog' | cut -f2 -d' ' | cut -f1 -d'.')
      if [ "\$supportlog" == "" ]; then
-        supportlog=\$effective_daemonhome/ttmesg.log
+        supportlog=\$effective_daemonhome/ttmesg
      fi
 
-     if [ "$_dsn" != "" ]; then ttDatastoreDown.sh $_dsn; fi
+     if [ "$_dsn" != "" ]; then bash /tmp/ttadmin/bin/ttDatastoreDown.sh $_dsn; fi
      ttDaemonAdmin -stop
-     rm \$userlog*
-     rm \$supportlog*
+
+     echo \$userlog\.log*
+     ls \$userlog\.log*
+
+     rm \$userlog\.log*
+     rm \$supportlog\.log*
+
      ttDaemonAdmin -start
-     if [ "$_dsn" != "" ]; then ttDatastoreUp.sh $_dsn; fi
+     if [ "$_dsn" != "" ]; then bash /tmp/ttadmin/bin/ttDatastoreUp.sh $_dsn; fi
 SSH
 
 }

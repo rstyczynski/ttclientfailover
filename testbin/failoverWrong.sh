@@ -9,6 +9,16 @@ expectResponse <<EOF
 Connected to:TTC_SERVER=$host1;TTC_SERVER_DSN=$dsn1;TCP_PORT=$serverport1;TTC_SERVER2=$host2;TTC_SERVER_DSN2=$dsn2;TCP_PORT2=$serverport2;uid=appuser;pwd=appuser
 EOF
 
+step 110 "Reading data from active" <<EOF
+        echo \$stepId select >control
+EOF
+expectResponse <<EOF
+Select
+Host:$dsn1@$host1:$serverport1
+Status:ACTIVE
+Resp:X
+EOF
+
 step 700 "Crashing master1" <<EOF
 	echo comment \$where >control
 EOF
