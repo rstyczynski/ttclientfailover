@@ -103,9 +103,17 @@ runSQL "2. c) Run the script create_appuser_obj.sql" <<EOF
         run "/tmp/create_appuser_obj.sql"
 EOF
 
+case $Replication_AckMode in
+ R2) Replication_AckModeFull="RETURN TWOSAFE" ;;
+ RR) Replication_AckModeFull="RETURN RECEIPT" ;;
+ NR)	  Replication_AckModeFull="NO RETURN" ;;
+ *)	  Replication_AckModeFull="" ;;
+esac
+echo create active standby pair $dsn1 on $host1, $dsn2 on $host2 $Replication_AckModeFull;
+
 runSQL "3.Define the active standby pair" <<EOF
         connect "dsn=$dsn;uid=adm;pwd=adm"; 
-        create active standby pair $dsn1 on $host1, $dsn2 on $host2;
+        create active standby pair $dsn1 on $host1, $dsn2 on $host2 $Replication_AckModeFull;
         repschemes;
 EOF
 

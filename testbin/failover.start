@@ -23,7 +23,14 @@ mkfifo control &>/dev/null
 
 if [ ! -d "$tmp" ]; then tmp=/tmp; fi
 #rm $tmp/*$testId* >/dev/null 2>&1
-#rm $testId* >/dev/null 2>&1
+echoTab "Removing previous logs"
+for ext in err exc exp@* log msg out
+do
+	echo -n "$ext "
+	rm $testId.[0-9][0-9]*.$ext >/dev/null 2>&1
+done
+echo OK
+
 
 ttDeleteLogsInSystem
 

@@ -23,6 +23,7 @@ step 700 "Crashing master1" <<EOF
 	echo comment \$where >control
 EOF
 masterDown
+sleep 5
 
 step 710 "Reading data after failure" <<EOF
 	echo \$stepId select >control
