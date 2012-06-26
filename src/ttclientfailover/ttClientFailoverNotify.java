@@ -32,7 +32,7 @@ public class ttClientFailoverNotify implements ClientFailoverEventListener {
     public void notify(ClientFailoverEvent event) {
         ClientFailoverEvent.FailoverEvent theEvent = event.getTheFailoverEvent();
         try {
-            now=Calendar.getInstance().getTimeInMillis();
+            now=System.currentTimeMillis();
             switch (theEvent) {
                 case BEGIN:
                     timer.start();

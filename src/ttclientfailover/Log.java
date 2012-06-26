@@ -68,7 +68,9 @@ public void msg (String msg) throws Exception {
 public void msg (String msg, boolean write2log) throws Exception {
     final String timeString =
     new SimpleDateFormat("HH:mm:ss:SSS").format(Calendar.getInstance().getTime());
-    now=Calendar.getInstance().getTimeInMillis();
+    
+    now=System.currentTimeMillis();
+    //final String timeString = ""+now;
 
     if (lastLog == 0)
         deltaLog=0;

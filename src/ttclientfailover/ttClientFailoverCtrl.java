@@ -9,9 +9,16 @@ import java.io.InputStreamReader;
 import java.sql.Connection;
 import java.sql.Driver;
 import java.sql.DriverManager;
+import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.sql.Statement;
+import java.sql.Timestamp;
+import java.text.DateFormat;
+import java.text.ParseException;
+import java.text.SimpleDateFormat;
+import java.util.ArrayList;
+import java.util.Date;
 import java.util.HashMap;
 
 /**
@@ -30,12 +37,57 @@ public class ttClientFailoverCtrl {
         String ttUID = null;
         String ttPWD = null;
         HashMap ttCfg = null;
+        
         String connectionString="TTC_SERVER=ozone1;TTC_SERVER_DSN=repdb1_1121;TCP_PORT=53389;TTC_SERVER2=ozone2;TTC_SERVER_DSN2=repdb2_1121;TCP_PORT2=53385;uid=appuser;pwd=appuser";
         String ttSelectSQL = "select * from dual";
         String ttInsertSQL = "insert into customers values (PK,'a','b','c')";
         String ttDeleteSQL = "delete from customers where cust_number=PK";
         String ttUpdateSQL = "update customers set address='VALUE' where cust_number=PK";
 
+        String ttSelectPrepSQL = "select * from dual";
+        String ttInsertPrepSQL = "insert into customers values (?,'a','b','c')";
+        String ttDeletePrepSQL = "delete from customers where cust_number=?";
+        String ttUpdatePrepSQL = "update customers set address=? where cust_number=?";
+        PreparedStatement ttSelectPrepStmt = null;
+        PreparedStatement ttInsertPrepStmt = null;
+        PreparedStatement ttDeletePrepStmt = null;
+        PreparedStatement ttUpdatePrepStmt = null;
+                    
+        // which query will be executed? SELECT,INSERT,DELETE,UPDATE 
+        String doTimestampMask = "";
+        int doTimestampPK = 0;
+        String doTimestampDate = "";
+        String doTimestampTime = "";
+        Timestamp doTimestampValue = null;
+        String doTimestampString = null;
+        
+        String ttInsertTimestampPrepSQL = "insert into timestampTest values (?,?)";
+        
+        String ttSelectTimestampPrepSQL = "select id, timefield from timestampTest where id=? and timefield=?";
+
+        String ttDeleteTimestampPrepSQL = "delete from timestampTest where id<(?+1)";
+        String ttDelete2TimestampPrepSQL = "delete from timestampTest where id=? and timefield=?";
+        
+        String ttUpdateTimestampPrepSQL = "update timestampTest set timefield=? where id=?";
+        String ttUpdate2TimestampPrepSQL = "update timestampTest set timefield=? where id=? and timefield<=?";
+
+                
+        String ttSelectTimestampTODATE_PrepSQL = "select id, timefield from timestampTest where id=? and timefield=to_date(?,'DD-MON-RR HH.MI.SSXFF AM')";
+        String ttDeleteTimestampTODATE_PrepSQL = "delete from timestampTest where id=? and timefield=to_date(?,'DD-MON-RR HH.MI.SSXFF AM')";
+        String ttUpdateTimestampTODATE_PrepSQL = "update timestampTest set timefield=to_date(?,'DD-MON-RR HH.MI.SSXFF AM') where id=? and timefield<=to_date(?,'DD-MON-RR HH.MI.SSXFF AM')";
+        
+        
+        PreparedStatement ttSelectTimestampPrepStmt = null;
+        PreparedStatement ttInsertTimestampPrepStmt = null;
+        PreparedStatement ttUpdateTimestampPrepStmt = null;
+        PreparedStatement ttUpdate2TimestampPrepStmt = null;
+        PreparedStatement ttDeleteTimestampPrepStmt = null;
+        PreparedStatement ttDelete2TimestampPrepStmt = null;
+        
+        PreparedStatement ttSelectTimestampTODATE_PrepStmt = null;
+        PreparedStatement ttDeleteTimestampTODATE_PrepStmt = null;
+        PreparedStatement ttUpdateTimestampTODATE_PrepStmt = null;
+        
         TimesTenConnection connection = null;
         ttClientFailoverNotify notify = new ttClientFailoverNotify();
 
@@ -46,7 +98,7 @@ public class ttClientFailoverCtrl {
         String line;
         String lineTokens[];
 
-        Statement bufferedStmt = null;
+        
         String response = null;
         
         Log log = new Log();
@@ -92,7 +144,9 @@ public class ttClientFailoverCtrl {
                 }
 
                 log.create(testId + "." + step, "Step " + step + " - BEGIN");
+                //log.msg("#command:" + line);
                 err.create(testId + "." + step, "Step " + step + " - BEGIN");
+                //err.msg("#command:" + line);
                 //log.msg("Step " + step + " - BEGIN", false);
                 try {
                     switch (me.cmdInt(cmd)) {
@@ -182,23 +236,253 @@ public class ttClientFailoverCtrl {
 //                        }
 
                             break;
-                        case INIT://init
-                            if (bufferedStmt != null) {
-                                bufferedStmt.close();
+                        case DISCONNECT://disconect
+                            if (connection != null) {
+                                //**
+//                                if (bufferedStmt != null) {
+//                                    try {
+//                                        bufferedStmt.close();
+//                                    } catch (SQLException sQLException) {
+//                                        err.msg("Warning: Prepares statement close error");
+//                                    }
+//                                 
+//                                }
+
+                                                            
+                                try {
+                                    connection.removeConnectionEventListener(notify);
+                                } catch (SQLException sQLException) {
+                                    err.msg("Warning: Not possible to remove event listener from previous connection");
+                                }
+                                
+                                try {
+                                    connection.close();
+                                } catch (SQLException sQLException) {
+                                    err.msg("Warning: Not possible to close previous connection");
+                                }
                             }
-                            bufferedStmt = connection.createStatement();
-                            log.msg("Statement initialized");
+                            log.msg("Connection closed");
                             break;
-                        case PREPARED://quick
-                            log.msg("Prepared select");
-                            log.msg("Host:" + me.getHost(connection));
-                            log.msg("Status:" + me.getRepStatus(connection));
-                            
-                            ResultSet rs = bufferedStmt.executeQuery(ttSelectSQL);
-                            rs.next();
-                            response = rs.getString(1);
-                            log.msg("Resp:" + response);
-                            rs.close();
+                        case INIT://init
+                            if (lineTokens.length > (tokenPos)) {
+                                String subCommand=lineTokens[tokenPos];
+                                if ("TIME".equals(subCommand)) {
+                                    if (lineTokens.length > (tokenPos+1)) {
+                                        doTimestampMask=lineTokens[tokenPos+2];
+                                    } else {
+                                        err.msg("Warning: operation mask not specified. Using defaults.");
+                                        doTimestampMask="INSERT,SELECT,UPDATE,DELETE";
+                                    }
+                                    
+                                    //ArrayList initializedSQL = new ArrayList();
+                                    String[] sqlcommands=doTimestampMask.split(",");
+                                    for(int cmdId=0;cmdId<sqlcommands.length;cmdId++){
+                                        String sqlCommand=sqlcommands[cmdId];
+                                        if("INSERT".equals(sqlCommand)){ 
+                                            if(ttInsertTimestampPrepStmt!=null) 
+                                                ttInsertTimestampPrepStmt.close();
+                                            ttInsertTimestampPrepStmt=connection.prepareStatement(ttInsertTimestampPrepSQL);
+                                            log.msg("Initialized " + sqlCommand + ": " + ttInsertTimestampPrepSQL);
+                                        }
+                                        
+                                        if("SELECT".equals(sqlCommand)) {
+                                            if(ttSelectTimestampPrepStmt!=null) 
+                                                ttSelectTimestampPrepStmt.close();
+                                            ttSelectTimestampPrepStmt=connection.prepareStatement(ttSelectTimestampPrepSQL);
+                                            log.msg("Initialized " + sqlCommand + ": " + ttSelectTimestampPrepSQL);
+                                        
+                                            if(ttSelectTimestampTODATE_PrepStmt!=null) 
+                                                ttSelectTimestampTODATE_PrepStmt.close();
+                                            ttSelectTimestampTODATE_PrepStmt=
+                                                    connection.prepareStatement(ttSelectTimestampTODATE_PrepSQL);
+                                            log.msg("Initialized " + sqlCommand + "_TODATE: " + ttSelectTimestampTODATE_PrepSQL);
+
+                                        }
+                                        
+                                        if("UPDATE".equals(sqlCommand)) {
+                                            if(ttUpdateTimestampPrepStmt!=null) 
+                                                ttUpdateTimestampPrepStmt.close();                                            
+                                            ttUpdateTimestampPrepStmt=connection.prepareStatement(ttUpdateTimestampPrepSQL);
+                                            log.msg("Initialized " + sqlCommand + ": " + ttUpdateTimestampPrepSQL);
+                                            
+                                            if(ttUpdate2TimestampPrepStmt!=null) 
+                                                ttUpdate2TimestampPrepStmt.close();                                            
+                                            ttUpdate2TimestampPrepStmt=connection.prepareStatement(ttUpdate2TimestampPrepSQL);
+                                            log.msg("Initialized " + sqlCommand + "2: " + ttUpdate2TimestampPrepSQL);
+                                            
+                                            if(ttUpdateTimestampTODATE_PrepStmt!=null) 
+                                                ttUpdateTimestampTODATE_PrepStmt.close();                                            
+                                            ttUpdateTimestampTODATE_PrepStmt=
+                                                    connection.prepareStatement(ttUpdateTimestampTODATE_PrepSQL);
+                                            log.msg("Initialized " + sqlCommand + "_TODATE: " + ttUpdateTimestampTODATE_PrepSQL);                                            
+                                            
+                                        }
+                                        
+                                        if("DELETE".equals(sqlCommand)) {
+                                            if(ttDeleteTimestampPrepStmt!=null) 
+                                                ttDeleteTimestampPrepStmt.close();                                            
+                                            ttDeleteTimestampPrepStmt=connection.prepareStatement(ttDeleteTimestampPrepSQL);
+                                            log.msg("Initialized " + sqlCommand + ": " + ttDeleteTimestampPrepSQL);
+                                            
+                                            if(ttDelete2TimestampPrepStmt!=null) 
+                                                ttDelete2TimestampPrepStmt.close();                                            
+                                            ttDelete2TimestampPrepStmt=connection.prepareStatement(ttDelete2TimestampPrepSQL);
+                                            log.msg("Initialized " + sqlCommand + "2: " + ttDelete2TimestampPrepSQL);
+
+                                                                                        
+                                            if(ttDeleteTimestampTODATE_PrepStmt!=null) 
+                                                ttDeleteTimestampTODATE_PrepStmt.close();                                            
+                                            ttDeleteTimestampTODATE_PrepStmt=
+                                                    connection.prepareStatement(ttDeleteTimestampTODATE_PrepSQL);
+                                            log.msg("Initialized " + sqlCommand + 
+                                                    "_TODATE: " + ttDeleteTimestampTODATE_PrepSQL);
+
+                                        }
+                                    }
+                                } else {
+                                    err.msg("Error: sub command not recognized, info: "+subCommand);
+                                }
+                            } else {                            
+                                if (ttSelectPrepStmt != null) {
+                                    ttSelectPrepStmt.close();
+                                }
+                                ttSelectPrepStmt = connection.prepareStatement(ttSelectPrepSQL);
+                            }
+                            log.msg("Statement(s) initialized");
+                            break;
+                        case QUICK://quick
+                            if (lineTokens.length > (tokenPos)) {
+                                
+                                String subCommand=lineTokens[tokenPos];
+                                
+                                if ("TIME".equals(subCommand)) {
+                                    if (lineTokens.length > (tokenPos+2)) {
+                                        doTimestampMask=lineTokens[tokenPos+1];
+                                        doTimestampPK=new Integer(lineTokens[tokenPos+2]).intValue();
+                                        
+                                        if (lineTokens.length > (tokenPos+4)) {
+                                            doTimestampDate=lineTokens[tokenPos+3];
+                                            doTimestampTime=lineTokens[tokenPos+4];
+
+                                            //log.msg("TIMESTAMP statements will be executed with:" + doTimestampMask + ", " +
+                                            //        "pk: " + doTimestampPK + ", " +
+                                            //        "date: " + doTimestampDate + ", " +
+                                            //        "time: " + doTimestampTime);
+
+                                            try {
+                                              DateFormat formatter;
+                                              formatter = new SimpleDateFormat("d-MMM-yy HH.mm.ss");
+                                              doTimestampString = doTimestampDate + " " + doTimestampTime;
+                                              Date date = (Date) formatter.parse(doTimestampString);
+                                              doTimestampValue = new Timestamp(date.getTime());
+                                            } catch (ParseException e) {
+                                                throw new Exception("Timestamp conversion error. Use this format: d-MMM-yy HH.mm.ss");
+                                            }
+                                        }
+                                    } else {
+                                        throw new Exception("TIME requires MASK and pk; DATE and TIME are optional paramters");
+                                    }
+                                    
+                               //     String[] sqlcommands=doTimestampMask.split(",");
+                               //     for(int cmdId=0;cmdId<sqlcommands.length;cmdId++){
+                                        //String sqlCommand=sqlcommands[cmdId];
+                                        String sqlCommand=doTimestampMask;
+                                        
+                                        if("INSERT".equals(sqlCommand)){ 
+                                            ttInsertTimestampPrepStmt.setInt(1, doTimestampPK);
+                                            ttInsertTimestampPrepStmt.setTimestamp(2, doTimestampValue);
+                                            ttInsertTimestampPrepStmt.execute();
+                                            log.msg("INSERT done with pk=" + doTimestampPK + ", timestamp=" + doTimestampValue);
+                                        }
+                                        
+                                        if("SELECT".equals(sqlCommand)) {
+                                            ttSelectTimestampPrepStmt.setInt(1, doTimestampPK);
+                                            ttSelectTimestampPrepStmt.setTimestamp(2, doTimestampValue);
+                                          
+                                            ResultSet rs = ttSelectTimestampPrepStmt.executeQuery();
+                                            rs.next();
+                                            response = rs.getString(1);
+                                            log.msg("Resp:" + response);
+                                            rs.close();
+                                           log.msg("SELECT done with pk=" + doTimestampPK + ", timestamp=" + doTimestampValue);
+                                        }
+                                        
+                                        if("SELECT_TODATE".equals(sqlCommand)) {
+                                            ttSelectTimestampTODATE_PrepStmt.setInt(1, doTimestampPK);
+                                            ttSelectTimestampTODATE_PrepStmt.setString(2, doTimestampString);
+                                          
+                                            ResultSet rs = ttSelectTimestampTODATE_PrepStmt.executeQuery();
+                                            rs.next();
+                                            response = rs.getString(1);
+                                            log.msg("Resp:" + response);
+                                            rs.close();
+                                           log.msg("SELECT_TODATE done with pk=" + doTimestampPK + ", timestamp=" + doTimestampValue);
+                                        }
+                                        
+                                        if("UPDATE".equals(sqlCommand)) {
+                                            ttUpdateTimestampPrepStmt.setTimestamp(1, doTimestampValue);
+                                            ttUpdateTimestampPrepStmt.setInt(2, doTimestampPK);
+                                            
+                                            ttUpdateTimestampPrepStmt.execute();
+                                            log.msg("UPDATE done with pk=" + doTimestampPK + ", timestamp=" + doTimestampValue);
+                                        }
+                                        
+                                        if("UPDATE2".equals(sqlCommand)) {
+                                            ttUpdate2TimestampPrepStmt.setTimestamp(1, doTimestampValue);
+                                            ttUpdate2TimestampPrepStmt.setInt(2, doTimestampPK);
+                                            ttUpdate2TimestampPrepStmt.setTimestamp(3, doTimestampValue);
+                                            
+                                            ttUpdate2TimestampPrepStmt.execute();
+                                            log.msg("UPDATE2 done with pk=" + doTimestampPK + ", timestamp=" + doTimestampValue);
+                                        }
+                                        
+                                        if("UPDATE_TODATE".equals(sqlCommand)) {
+                                            ttUpdateTimestampTODATE_PrepStmt.setString(1, doTimestampString);
+                                            ttUpdateTimestampTODATE_PrepStmt.setInt(2, doTimestampPK);
+                                            ttUpdateTimestampTODATE_PrepStmt.setString(3, doTimestampString);
+                                            
+                                            ttUpdateTimestampTODATE_PrepStmt.execute();
+                                            log.msg("UPDATE_TODATE done with pk=" + doTimestampPK + ", timestamp=" + doTimestampValue);
+                                        }
+
+                                        
+                                        if("DELETE".equals(sqlCommand)) {
+                                            ttDeleteTimestampPrepStmt.setInt(1, doTimestampPK);
+                                          
+                                            ttDeleteTimestampPrepStmt.execute();
+                                            log.msg("DELETE done with pk=" + doTimestampPK);
+                                        }
+                                        
+                                        if("DELETE2".equals(sqlCommand)) {
+                                            ttDelete2TimestampPrepStmt.setInt(1, doTimestampPK);
+                                            ttDelete2TimestampPrepStmt.setTimestamp(2, doTimestampValue);
+                                          
+                                            ttDelete2TimestampPrepStmt.execute();
+                                            log.msg("DELETE2 done with pk=" + doTimestampPK + ", timestamp=" + doTimestampValue);
+                                        }
+                                        
+                                        if("DELETE_TODATE".equals(sqlCommand)) {
+                                            ttDeleteTimestampTODATE_PrepStmt.setInt(1, doTimestampPK);
+                                            ttDeleteTimestampTODATE_PrepStmt.setString(2, doTimestampValue.toString());
+                                          
+                                            ttDeleteTimestampTODATE_PrepStmt.execute();
+                                            log.msg("DELETE_TODATE done with pk=" + doTimestampPK + ", timestamp=" + doTimestampValue);
+                                        }
+                                        //}
+                                } else {
+                                    err.msg("Error: sub command not recognized.");
+                                }
+                            } else {                            
+                                log.msg("Prepared select");
+                                log.msg("Host:" + me.getHost(connection));
+                                log.msg("Status:" + me.getRepStatus(connection));
+
+                                ResultSet rs = ttSelectPrepStmt.executeQuery();
+                                rs.next();
+                                response = rs.getString(1);
+                                log.msg("Resp:" + response);
+                                rs.close();
+                            }
                             break;
                         case UNKNOWN:
                             log.msg("Unknown command:'" + cmd);
@@ -254,13 +538,24 @@ public class ttClientFailoverCtrl {
                             rsSelect.close();
                             oneTimeSelectStmt.close();
                             break;
+                        case ONESELECT://step
+                            log.msg("OneSelect");
+                            //log.msg("Host:" + me.getHost(connection));
+                            log.msg("Status:" + me.getRepStatus(connection));
+                            
+                            break;
                         case HELP://help
                             log.msg("Available commands:" + me.cmdDir.keySet());
                             break;
+                        case COMMIT://help
+                            log.msg("Commit");
+                            connection.commit();
+                            break;
+                        
                         case EXIT://exit
-                            if (bufferedStmt != null) {
-                                bufferedStmt.close();
-                            }
+//                            if (bufferedStmt != null) {
+//                                bufferedStmt.close();
+//                            }
                             log.msg("Done.");
                             break;
                     }
@@ -322,15 +617,18 @@ public class ttClientFailoverCtrl {
     public ttClientFailoverCtrl() {
         //cmdDir.put("sql", SQL);
         //mdDir.put("insert", DELETE);
+        cmdDir.put("commit", COMMIT);
         cmdDir.put("update", UPDATE);
         cmdDir.put("insert", INSERT);
+        cmdDir.put("oneselect", ONESELECT);
         cmdDir.put("select", SELECT);
-        cmdDir.put("quick", PREPARED);
+        cmdDir.put("quick", QUICK);
         cmdDir.put("init", INIT);
         cmdDir.put("?", HELP);
         cmdDir.put("help", HELP);
         cmdDir.put("exit", EXIT);
         cmdDir.put("connect", CONNECT);
+        cmdDir.put("disconnect", DISCONNECT);
         cmdDir.put("cfg", CFG);
         cmdDir.put("comment", COMMENT);
     }
@@ -345,11 +643,14 @@ public class ttClientFailoverCtrl {
     static final int EXIT = 100;
     static final int HELP = 99;
     static final int COMMENT = 98;
+    static final int COMMIT = 97;
     
     static final int CFG = 50;
     static final int CONNECT = 40;
+    static final int DISCONNECT = 41;
     static final int INIT = 30;
-    static final int PREPARED = 20;
+    static final int QUICK = 20;
+    static final int ONESELECT = 6;
     static final int SQL = 5;
     static final int DELETE = 4;
     static final int UPDATE = 3;

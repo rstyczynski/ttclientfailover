@@ -123,6 +123,7 @@ function step {
      echo "----- $stepId: $where" 
      echo "---------------------------------------------------------------------------"
   ) > $testId.$stepId.log
+  cat $testId.$stepId.log >>$testId.script.log
 
 
   if [ "$updateTimesTenLog" == "YES" ]; then
@@ -148,14 +149,22 @@ SSH
   if [ -f $testId.$stepId.out ]; then rm $testId.$stepId.out; fi
   if [ -f $testId.$stepId.err ]; then rm $testId.$stepId.err; fi
 
-  while read cmd; do 
+  while read cmd; do
+        eval "echo $(echo $cmd | sed 's/\>/\\>/g')" >>$testId.script.log
  	eval $cmd >>$testId.$stepId.out 2>>$testId.$stepId.err
   done
+  #grep -v "^#command:" $testId.$stepId.tmp.out >$testId.$stepId.out
+  #grep -v "^#command:" $testId.$stepId.tmp.err >$testId.$stepId.err
+
   cat $testId.$stepId.out >>$testId.$stepId.log
+  cat $testId.$stepId.out >>$testId.script.log
   if [ -s $testId.$stepId.err ]; then
     echo '------- Stdout errors:' >>$testId.$stepId.log
+    echo '------- Stdout errors:' >>$testId.script.log
     cat $testId.$stepId.err >>$testId.$stepId.log
-    echo '----------------------'
+    cat $testId.$stepId.err >>$testId.script.log
+    echo '----------------------' >>$testId.$stepId.log
+    echo '----------------------' >>$testId.script.log
   fi
 }
 
@@ -232,16 +241,16 @@ function expectResponse {
 				#if [ "$RESPONSE_LIMIT" == "" ]; then
 				#	RESPONSE_LIMIT=80
         			#fi
-        			echo -n "OK, $type: $(cat $testId.$stepId.exp | tr '\n' ' ')" | tee -a $testId.$stepId.log
+        			echo -n "OK, $type: $(cat $testId.$stepId.exp | tr '\n' ' ')" | tee -a $testId.$stepId.tmp.log
 				#| cut -b1-$RESPONSE_LIMIT
                                 rm $testId.$stepId.diff
                                 if [ "$VERBOSE" == "YES" ]; then
                                 	echo
-					cat $testId.$stepId.exp | tee -a $testId.$stepId.log
+					cat $testId.$stepId.exp | tee -a $testId.$stepId.tmp.log
                                 fi
 			else
 				echo "Unexpected response, info:" | tee -a $testId.$stepId.log
-				cat $testId.$stepId.diff | tee -a $testId.$stepId.log
+				cat $testId.$stepId.diff | tee -a $testId.$stepId.tmp.log
 			fi
                                 
 			if [ "$(cat $testId.$stepId.err 2>/dev/null | wc -c)" -gt 0 ]; then 
@@ -251,21 +260,24 @@ function expectResponse {
 					echo
 					echoTab '\'
 					echo "Warning, info:$(cat $testId.$stepId.warning | tr '\n' ' ')"
-					) | tee -a $testId.$stepId.log
+					) | tee -a $testId.$stepId.tmp.log
                                 else    
 					(
 					echo
 					echoTab '\'
                                 	echo "Error, info:$(cat $testId.$stepId.err | tr '\n' ' ')"
-					) | tee -a $testId.$stepId.log
+					) | tee -a $testId.$stepId.tmp.log
                                 fi
       			else    
                         	rm $testId.$stepId.err
-				echo | tee -a $testId.$stepId.log
+				echo | tee -a $testId.$stepId.tmp.log
                        	fi
 	else
-		echo Error, info: timeout waiting for response file $testId.$stepId.msg | tee $testId.$stepId.err | tee -a $testId.$stepId.log
+		echo Error, info: timeout waiting for response file $testId.$stepId.msg | tee $testId.$stepId.err | tee -a $testId.$stepId.tmp.log
 	fi
+	cat $testId.$stepId.tmp.log >>$testId.$stepId.log
+	cat $testId.$stepId.tmp.log >>$testId.script.log
+        rm $testId.$stepId.tmp.log
 	}
 
 function expectResponseOK {
@@ -296,7 +308,7 @@ function expectFile {
                 echo -n ${progress[$_mstep]}
                 let _mstep++
                 if [ $_mstep -eq $_mstepmax ]; then _mstep=0; fi
-                sleep 1
+                sleep 0.1
                 echo -n ""
                 if [ -f $testId.$stepId.$ext ]; then
                         done=YES
@@ -320,19 +332,19 @@ function expectFile {
                         if [ $? -eq 0 ]; then
 				notes=$(cat $testId.$stepId.exp@$ext | tr '\n' ' ')
 				if [ -z "$notes" ]; then notes='(none)'; fi
-                                echo "OK, $type: $notes" | tee -a $testId.$stepId.log
+                                echo "OK, $type: $notes" | tee -a $testId.$stepId.tmp.log
                                 rm $testId.$stepId.diff_$ext
                                 if [ "$VERBOSE" == "YES" ]; then
                                         (
 					echo 
                                         cat $testId.$stepId.exp
-                                	)  | tee -a $testId.$stepId.log
+                                	)  | tee -a $testId.$stepId.tmp.log
 				fi
                         else
 				(
                                 echo "Unexpected response, info:"
                                 cat $testId.$stepId.diff_$ext
-                        	)  | tee -a $testId.$stepId.log
+                        	)  | tee -a $testId.$stepId.tmp.log
 			fi
 
 			#this section works bad - disabling
@@ -342,10 +354,10 @@ function expectFile {
                                 		if [ "$(cat $testId.$stepId.$exterr | grep -v Warning | grep -v '^$' | wc -c)" -eq 0 ]; then
                                         		mv $testId.$stepId.$exterr $testId.$stepId.warning@$exterr
 							echoTab '\'
-                                        		echo "Warning, info:$(cat $testId.$stepId.warning@$exterr | tr '\n' ' ')" | tee -a $testId.$stepId.log
+                                        		echo "Warning, info:$(cat $testId.$stepId.warning@$exterr | tr '\n' ' ')" | tee -a $testId.$stepId.tmp.log
 						else
                                         		echoTab '\'
-                                        		echo "Error, info:$(cat $testId.$stepId.$exterr | tr '\n' ' ')" | tee -a $testId.$stepId.log
+                                        		echo "Error, info:$(cat $testId.$stepId.$exterr | tr '\n' ' ')" | tee -a $testId.$stepId.tmp.log
 						fi
                         		else
                                 		rm $testId.$stepId.$exterr
@@ -355,8 +367,11 @@ function expectFile {
 			fi
 
         else
-                echo Error, info: timeout waiting for response file $testId.$stepId.$ext | tee $testId.$stepId.err@$ext  | tee -a $testId.$stepId.log
+                echo Error, info: timeout waiting for response file $testId.$stepId.$ext | tee $testId.$stepId.err@$ext  | tee -a $testId.$stepId.tmp.log
         fi
+        cat $testId.$stepId.tmp.log >>$testId.$stepId.log
+        cat $testId.$stepId.tmp.log >>$testId.script.log
+        rm $testId.$stepId.tmp.log 
         }
 
 function expect {

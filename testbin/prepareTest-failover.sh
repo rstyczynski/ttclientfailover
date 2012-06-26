@@ -1,6 +1,7 @@
 #!/bin/bash
 
 . failover.start -deleteTimesTenLog NO -startapp NO
+# -Replication_AckMode RR
 if [ $? -ne 0 ]; then
   if [ -f failover.start ]; then cd ..;export testbin=$PWD;cd -; fi
   if [ -f /tmp/ttadmin/bin/failover.start ]; then 
@@ -8,7 +9,8 @@ if [ $? -ne 0 ]; then
 	export ttadmin_home=/tmp/ttadmin
   fi
   PATH=$testbin:$PATH
-  . failover.start -deleteTimesTenLog NO -startapp NO
+  . failover.start -deleteTimesTenLog NO -startapp NO 
+#-Replication_AckMode RR
 fi
 
 #Parse parameters. echo pair of '-parameter value' will be executed as 'parameter=value'. Parameter will be available in script as $parameter
@@ -103,6 +105,11 @@ runSQL "2. c) Run the script create_appuser_obj.sql" <<EOF
         run "/tmp/create_appuser_obj.sql"
 EOF
 
+runSQL "2. d) Create additional tables for tests" <<EOF
+	connect "dsn=$dsn;uid=appuser;pwd=appuser";
+        create table appuser.timestampTest (id number PRIMARY KEY, timefield timestamp(6));
+EOF
+
 case $Replication_AckMode in
  R2) Replication_AckModeFull="RETURN TWOSAFE" ;;
  RR) Replication_AckModeFull="RETURN RECEIPT" ;;
@@ -147,9 +154,9 @@ runSQL "Prepare data to verify that replication works" <<EOF
         insert into orders values (6853180,1121,'9999999999', sysdate);
         commit;
 EOF
-echo XXXx
+        echo XXXx
 	exit
-echo VVV
+        echo VVV
 fi #end of local execution
 
 if [ "$mode" == "remote" ]; then

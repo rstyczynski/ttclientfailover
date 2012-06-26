@@ -45,9 +45,9 @@ EOF
 
 step 300 "Activate standby node" <<EOF
 	echo \$stepId comment \$where >control
-	ttIsqlCS -v1 -e"call ttrepstateset('active'); call ttrepstateget; exit" "TTC_SERVER=$host2;TTC_SERVER_DSN=$dsn2;TCP_PORT=$serverport2;uid=adm;pwd=adm"
+	ttIsqlCS -v1 -e"call ttrepstateset('active'); call ttrepstateget; exit" "TTC_SERVER=$host2;TTC_SERVER_DSN=$dsn2;TCP_PORT=$serverport2;uid=adm;pwd=adm" 
+	#waitForRemoteStateChange $dsn2 $host2 $serverport2 ACTIVE
 EOF
-waitForRemoteStateChange $dsn2 $host2 $serverport2 ACTIVE
 
 step 310 "Reading data from master2 after failover"  <<EOF
         echo \$stepId select >control
