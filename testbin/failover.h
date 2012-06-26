@@ -1,4 +1,8 @@
 
+function getTTVersion {
+	ttversion -m | grep "^version=" | cut -d'=' -f2
+}
+
 function checkParams {
 if [ -z "$1" ]; then
   if [ -z "$cachecfg" ]; then

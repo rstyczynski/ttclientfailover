@@ -146,7 +146,6 @@ runSQL "5. Set the replication state to Active" <<EOF
 EOF
 waitForStateChange ACTIVE
 
-echo CCC
 runSQL "Prepare data to verify that replication works" <<EOF
         disconnect;
         connect "dsn=$dsn1;uid=appuser;pwd=appuser";
@@ -154,9 +153,7 @@ runSQL "Prepare data to verify that replication works" <<EOF
         insert into orders values (6853180,1121,'9999999999', sysdate);
         commit;
 EOF
-        echo XXXx
 	exit
-        echo VVV
 fi #end of local execution
 
 if [ "$mode" == "remote" ]; then

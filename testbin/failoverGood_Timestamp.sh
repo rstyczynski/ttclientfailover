@@ -107,7 +107,7 @@ Select
 EOF
 echoTab "\----checking expected exception"
 expectError <<EOF
-class java.sql.SQLException	S1000	47137	[TimesTen][TimesTen 11.2.1.8.0 CLIENT]Statement handle invalid due to client failover
+class java.sql.SQLException	S1000	47137	[TimesTen][TimesTen $ttVersion CLIENT]Statement handle invalid due to client failover
 EOF
 
 step 300 "Activate standby node" <<EOF
@@ -136,7 +136,7 @@ expectResponse <<EOF
 EOF
 echoTab "\----checking expected exception"
 expectError <<EOF
-class java.sql.SQLException	S1000	47137	[TimesTen][TimesTen 11.2.1.8.0 CLIENT]Statement handle invalid due to client failover
+class java.sql.SQLException	S1000	47137	[TimesTen][TimesTen $ttVersion CLIENT]Statement handle invalid due to client failover
 EOF
 
 #step 415 "Initializing test" <<EOF
