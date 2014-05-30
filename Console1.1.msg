@@ -1,0 +1,3 @@
+Warning: Connection string not specified. Trying environment...
+OK. Connection string taken from environment:TTC_SERVER=demohostVM1;TTC_SERVER_DSN=repdb1_1121;TCP_PORT=53395;TTC_SERVER2=demohostVM2;TTC_SERVER_DSN2=repdb2_1121;TCP_PORT2=53395;uid=appuser;pwd=appuser
+Connected to:TTC_SERVER=demohostVM1;TTC_SERVER_DSN=repdb1_1121;TCP_PORT=53395;TTC_SERVER2=demohostVM2;TTC_SERVER_DSN2=repdb2_1121;TCP_PORT2=53395;uid=appuser;pwd=appuser

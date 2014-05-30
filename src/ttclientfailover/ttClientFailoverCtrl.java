@@ -19,7 +19,12 @@ import java.text.ParseException;
 import java.text.SimpleDateFormat;
 import java.util.ArrayList;
 import java.util.Date;
+import java.util.Enumeration;
 import java.util.HashMap;
+import jline.*;
+import java.io.*;
+import java.util.LinkedList;
+import java.util.List;
 
 /**
  *
@@ -52,6 +57,8 @@ public class ttClientFailoverCtrl {
         PreparedStatement ttInsertPrepStmt = null;
         PreparedStatement ttDeletePrepStmt = null;
         PreparedStatement ttUpdatePrepStmt = null;
+        
+        String ttSessionSQL = "select * from NLS_SESSION_PARAMETERS where PARAMETER='NLS_TIMESTAMP_FORMAT'";
                     
         // which query will be executed? SELECT,INSERT,DELETE,UPDATE 
         String doTimestampMask = "";
@@ -88,11 +95,27 @@ public class ttClientFailoverCtrl {
         PreparedStatement ttDeleteTimestampTODATE_PrepStmt = null;
         PreparedStatement ttUpdateTimestampTODATE_PrepStmt = null;
         
+        PreparedStatement[] prepStatements = new PreparedStatement[20];
+        int preparedStmtSlot;
+        PreparedStatement preparedStmt;
+        Boolean[] prepStatementsResult = new Boolean[20];
+        
+        class varValue {
+            String type;
+            Object value;
+            
+            public varValue (String _type, Object _value ){
+                this.type=_type;
+                this.value=_value;
+            }
+        };
+        HashMap vars = new HashMap<String, varValue>();
+        
         TimesTenConnection connection = null;
         ttClientFailoverNotify notify = new ttClientFailoverNotify();
 
         //control loop
-        File cmdFIFO = new File("/Users/rstyczynski/NetBeansProjects/ttclientfailover/dist/control");
+        //File cmdFIFO = new File("/Users/rstyczynski/NetBeansProjects/ttclientfailover/dist/control");
         BufferedReader cmdFD;
         String cmd = "";
         String line;
@@ -109,7 +132,8 @@ public class ttClientFailoverCtrl {
         err.logExt="exc";
         
         //cmdFD = new BufferedReader(new InputStreamReader(new FileInputStream(cmdFIFO)));
-        cmdFD = new BufferedReader(new InputStreamReader(System.in));
+        //cmdFD = new BufferedReader(new InputStreamReader(System.in));
+        ConsoleReader reader = new ConsoleReader();
         
         if (args.length != 1) {
             throw new Exception("Test id not specified!");
@@ -117,14 +141,26 @@ public class ttClientFailoverCtrl {
         String testId = args[0];
         
         log.msg("Available commands:" + me.cmdDir.keySet());
+        
+        List completors = new LinkedList();
+        completors.add(new SimpleCompletor((String[])me.cmdDir.keySet().toArray(new String[0])));
+        reader.addCompletor(new ArgumentCompletor(completors));
+            
         log.msg("Ready to go.");
-      
+
+        
         int step = 0;
         int tokenPos;
         String error = "";
         while (!"exit".equals(cmd)) {
-            line = cmdFD.readLine();
-            if (line == null) {
+            
+
+            line = reader.readLine(">");
+            
+            
+            //line = cmdFD.readLine();
+                    
+            if (line == null || "".equals(line)) {
                 Thread.sleep(100);
             } else {    
                 lineTokens = line.split(" ");
@@ -150,6 +186,105 @@ public class ttClientFailoverCtrl {
                 //log.msg("Step " + step + " - BEGIN", false);
                 try {
                     switch (me.cmdInt(cmd)) {
+                        case PREPARE:
+                            if (lineTokens.length <= (tokenPos)) {
+                                throw new Exception("Parameters not specified! Usage: prepare <slot> <SQL>");
+                            }
+
+                            preparedStmtSlot = (new Integer(lineTokens[tokenPos])).intValue();
+                            StringBuffer preparedSQL = new StringBuffer();
+
+                            for (int i = tokenPos+1; i < lineTokens.length; i++) {
+                                preparedSQL.append(" ").append(lineTokens[i]);
+
+                            }
+                            prepStatements[preparedStmtSlot] = connection.prepareStatement(preparedSQL.toString());
+                            log.msg("Prepared statment registered. Slot:" + preparedStmtSlot + 
+                                    ", SQL:" + preparedSQL.toString());
+                            break;
+                        case DEFINE:
+                            String varName=lineTokens[tokenPos++];                   
+                            String varType=lineTokens[tokenPos++];
+                            
+                            StringBuffer value = new StringBuffer();
+                            for (int i = tokenPos; i < lineTokens.length; i++) {
+                                value.append(lineTokens[i]);
+                                
+                                if(i < lineTokens.length-1) 
+                                       value.append(" ");
+                            }
+                            
+                            String varValueString=value.toString();
+                            Object varValue = null;      
+                            if ("TIMESTAMP".equalsIgnoreCase(varType)) {
+                                DateFormat formatter;
+                                formatter = new SimpleDateFormat("d-MMM-yy HH.mm.ss");
+                                Date varDateValue = (Date) formatter.parse(varValueString);
+                                varValue = new Timestamp(varDateValue.getTime());
+                            } else if ("INTEGER".equalsIgnoreCase(varType)) {
+                                varValue = new Integer(varValueString);
+                            } else if ("STRING".equalsIgnoreCase(varType)) {
+                                varValue = varValueString;
+                            }
+                            vars.put(varName, new varValue(varType, varValue));
+                            log.msg("Registered variable " + varName + " as " + varType + " := " + varValue );
+                            break;
+                        case EXEC:
+                            if (lineTokens.length <= (tokenPos)) {
+                                throw new Exception("Parameters not specified! Usage: exec <slot>");
+                            }
+                            preparedStmtSlot = (new Integer(lineTokens[tokenPos++])).intValue();
+                            
+                            
+                            //TODO execute prep stmt
+                            preparedStmt = prepStatements[preparedStmtSlot];
+                            
+                            //read variables
+                            int varPos = 1;
+                            for (int i = tokenPos; i < lineTokens.length; i++) {
+                                varName = lineTokens[i];
+                                varType = ((varValue)vars.get(varName)).type;
+                                varValue = ((varValue)vars.get(varName)).value;
+                                
+                                if ("string".equalsIgnoreCase(varType)) {
+                                    preparedStmt.setString(varPos, (String)varValue);
+                                } else if ("integer".equalsIgnoreCase(varType)) {
+                                    preparedStmt.setInt(varPos, ((Integer)varValue).intValue());
+                                } else if ("timestamp".equalsIgnoreCase(varType)) {
+                                    preparedStmt.setTimestamp(varPos, (Timestamp)varValue);
+                                  
+                                }
+                                log.msg("DEBUG: var:" + varPos + "name:" + varName + ", type:" + varType + ", value " + varValue);        
+                                varPos++;
+                            }
+                            prepStatementsResult[preparedStmtSlot] = preparedStmt.execute();
+                            break;
+                        case FETCH:
+                            if (lineTokens.length <= (tokenPos)) {
+                                throw new Exception("Parameters not specified! Usage: fetchall <slot>");
+                            }
+                            preparedStmtSlot = (new Integer(lineTokens[tokenPos++])).intValue();
+                            
+                            
+                            //TODO execute prep stmt
+                            if(prepStatementsResult[preparedStmtSlot].booleanValue()) {
+                                //returned resultSet
+                                ResultSet rs = prepStatements[preparedStmtSlot].getResultSet();
+                                rs.next();
+                                
+                                //log.msg("Column count:" + rs.getMetaData().getColumnCount());
+                                response="";
+                                for (int i=1;i<=rs.getMetaData().getColumnCount();i++){
+                                    response = response + " " + rs.getString(i);
+                                }
+                                log.msg("Response:" + response);
+                            } else {
+                                //returned update count of nothing
+                                int updateCount = prepStatements[preparedStmtSlot].getUpdateCount();
+                                log.msg("Response:" + updateCount);
+                            }                          
+                            
+                            break;
                         case COMMENT:
                             StringBuffer comment = new StringBuffer();
                             for (int i = tokenPos; i < lineTokens.length; i++) {
@@ -166,10 +301,24 @@ public class ttClientFailoverCtrl {
                             }
                             break;
                         case CONNECT:
-                            if (lineTokens.length < (tokenPos+1)) {
-                                throw new Exception("Connection string not specified");
+//                            if (lineTokens.length < (tokenPos+1)) {
+//                                throw new Exception("Connection string not specified");
+//                            }
+                            String conStr;
+                            if (lineTokens.length >= (tokenPos+1)) {
+                                conStr = lineTokens[tokenPos];
+                            } else {
+                                log.msg("Warning: Connection string not specified. Trying environment...");
+                                //tturl must be exported in OS before starting program
+                                conStr=System.getenv("ttURL");
+                                
+                                //err.msg(System.getenv().toString());
+                                if (conStr == null || "".equals(conStr)) {
+                                throw new Exception("Error: Connection string not specified");
+                                } else {
+                                    log.msg("OK. Connection string taken from environment:" + conStr);
+                                }
                             }
-                            String conStr = lineTokens[tokenPos];
 
                             HashMap conAttr = new HashMap();
                             String connElements[] = conStr.split(";");
@@ -185,7 +334,7 @@ public class ttClientFailoverCtrl {
                             //User authentication failed is returned after >120s
                             ttUID = (String) conAttr.get("uid");
                             ttPWD = (String) conAttr.get("pwd");
-
+                            
                             if (ttUID == null) {
                                 throw new Exception("UID not specified");
                             }
@@ -544,6 +693,19 @@ public class ttClientFailoverCtrl {
                             log.msg("Status:" + me.getRepStatus(connection));
                             
                             break;
+                            
+                        case SESSION://step
+                            log.msg("Session");
+                            
+                            Statement oneSessionStmt = connection.createStatement();
+                            ResultSet rsSession = oneSessionStmt.executeQuery(ttSessionSQL);
+                            rsSession.next();
+                            response = rsSession.getString(1);
+                            log.msg("Resp:" + response);
+                            rsSession.close();
+                            oneSessionStmt.close();
+                            break;
+                            
                         case HELP://help
                             log.msg("Available commands:" + me.cmdDir.keySet());
                             break;
@@ -573,7 +735,8 @@ public class ttClientFailoverCtrl {
                 err.close("Step " + step + " - END");
             }//line null
         }//while
-        cmdFD.close();
+        
+        //cmdFD.close();
         //file.close();
     }
 
@@ -617,6 +780,7 @@ public class ttClientFailoverCtrl {
     public ttClientFailoverCtrl() {
         //cmdDir.put("sql", SQL);
         //mdDir.put("insert", DELETE);
+        cmdDir.put("session", SESSION);
         cmdDir.put("commit", COMMIT);
         cmdDir.put("update", UPDATE);
         cmdDir.put("insert", INSERT);
@@ -631,6 +795,10 @@ public class ttClientFailoverCtrl {
         cmdDir.put("disconnect", DISCONNECT);
         cmdDir.put("cfg", CFG);
         cmdDir.put("comment", COMMENT);
+        cmdDir.put("prepare", PREPARE);
+        cmdDir.put("define", DEFINE);
+        cmdDir.put("exec", EXEC);
+        cmdDir.put("fetch", FETCH);
     }
 
     private int cmdInt(String cmd) {
@@ -645,6 +813,11 @@ public class ttClientFailoverCtrl {
     static final int COMMENT = 98;
     static final int COMMIT = 97;
     
+    static final int SESSION = 75;
+    static final int DEFINE = 70;
+    static final int FETCH = 62;
+    static final int EXEC = 61;
+    static final int PREPARE = 60;
     static final int CFG = 50;
     static final int CONNECT = 40;
     static final int DISCONNECT = 41;

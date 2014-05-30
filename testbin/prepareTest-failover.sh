@@ -17,7 +17,7 @@ fi
 eval $(echo $@ | sed "s/ -/;/g" | sed "s/^-//" | tr ' ' '=')
 
 #check parameters
-if [ -z "$host1" ] || [ -z "$dsn1" ] || [ -z "$osuser" ] || [ -z "$host2" ] || [ -z "$dsn2" ]; then 
+if [ -z "$host1" ] || [ -z "$dsn1" ] || [ -z "$osuser1" ] || [ -z "$osuser2" ] || [ -z "$host2" ] || [ -z "$dsn2" ]; then 
 	echo Params!
 	exit 1
 fi
@@ -27,22 +27,24 @@ if [ "$mode" == "" ]; then
   	echo I. Clone script\(s\) to $host2
 	echo Note: you may be asked for ssh password
 	echo -----------------------------------------------------
-        for host in $host1 $host2; do
-          ssh $osuser@$host "mkdir /tmp/ttadmin /tmp/ttadmin/bin /tmp/ttadmin/log /tmp/ttadmin/cfg" 
-          scp $testbin/*.sh $testbin/*.h $testbin/*.start $osuser@$host:/tmp/ttadmin/bin
-          scp $testbin/cfg/* $osuser@$host:/tmp/ttadmin/cfg
-        done
+          ssh $osuser1@$host1 "mkdir /tmp/ttadmin /tmp/ttadmin/bin /tmp/ttadmin/log /tmp/ttadmin/cfg" 
+          scp $testbin/*.sh $testbin/*.h $testbin/*.start $osuser1@$host1:/tmp/ttadmin/bin
+          scp $testbin/cfg/* $osuser1@$host1:/tmp/ttadmin/cfg
+
+          ssh $osuser2@$host2 "mkdir /tmp/ttadmin /tmp/ttadmin/bin /tmp/ttadmin/log /tmp/ttadmin/cfg" 
+          scp $testbin/*.sh $testbin/*.h $testbin/*.start $osuser2@$host2:/tmp/ttadmin/bin
+          scp $testbin/cfg/* $osuser2@$host2:/tmp/ttadmin/cfg
 
 	echo -----------------------------------------------------
         echo II. Setting time at $host1, $host2 
         echo Note: you may be asked for ssh password
         echo -----------------------------------------------------
-	ssh $osuser@$host1 "/usr/sbin/ntpdate -s -b -p 8 -u 129.132.2.21"
-	ssh $osuser@$host2 "/usr/sbin/ntpdate -s -b -p 8 -u $host1"
+	#ssh $osuser1@$host1 "/usr/sbin/ntpdate -s -b -p 8 -u 129.132.2.21"
+	ssh root@$host2 "/usr/sbin/ntpdate -u $host1"
 	echo -----------------------------------------------------
 	echo III. Executing at master active: $host1...
 	echo -----------------------------------------------------
-        ssh $osuser@$host1 <<EOF
+        ssh $osuser1@$host1 <<EOF
 		export ttadmin_home=/tmp/ttadmin
 		export testbin=/tmp/ttadmin/bin
                 PATH=\$testbin:\$PATH
@@ -52,7 +54,7 @@ EOF
 	echo IV. Executing at master standby: $host2...
         echo Note: you may be asked for ssh password
 	echo -----------------------------------------------------
-	ssh $osuser@$host2 <<EOF
+	ssh $osuser2@$host2 <<EOF
 		export ttadmin_home=/tmp/ttadmin
 		export testbin=/tmp/ttadmin/bin
 		PATH=\$testbin:\$PATH
@@ -116,11 +118,15 @@ case $Replication_AckMode in
  NR)	  Replication_AckModeFull="NO RETURN" ;;
  *)	  Replication_AckModeFull="" ;;
 esac
-echo create active standby pair $dsn1 on $host1, $dsn2 on $host2 $Replication_AckModeFull;
 
+echo create active standby pair $dsn1, $dsn2 on "$host2" $Replication_AckModeFull store $dsn1 port $repagentport1 store $dsn2 on "$host2" port $repagentport2;
+   
 runSQL "3.Define the active standby pair" <<EOF
-        connect "dsn=$dsn;uid=adm;pwd=adm"; 
-        create active standby pair $dsn1 on $host1, $dsn2 on $host2 $Replication_AckModeFull;
+        connect "dsn=$dsn;uid=adm;pwd=adm";
+        #create active standby pair $dsn1 on $host1, $dsn2 on $host2 $Replication_AckModeFull; 
+        #above configuration does not work. Datetime field overflow issue is visible after failover
+
+        create active standby pair $dsn1, $dsn2 on "$host2" $Replication_AckModeFull store $dsn1 port $repagentport1 store $dsn2 on "$host2" port $repagentport2;
         repschemes;
 EOF
 
@@ -176,7 +182,7 @@ ttForcedDestroy.sh $dsn confirm force
 ttDaemonAdmin -startServer >/dev/null 2>/dev/null
 
 echoTab "6. Duplicate the active database to the standby"; echo
-ttrepadmin -duplicate -drop appuser.nodeinfo -from $dsn1 -host $host1 -localhost $host2 -uid adm -pwd adm -verbosity 2 $dsn
+ttrepadmin -duplicate -drop appuser.nodeinfo -from $dsn1 -host $host1 -localhost $host2 -uid adm -pwd adm -verbosity 2 -remoteDaemonPort $daemonport1 $dsn
 
 runSQL "6. a) Create test table to check replication" <<EOF
         call ttRamPolicySet('manual');

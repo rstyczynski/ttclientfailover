@@ -1,0 +1,4 @@
+1c1
+< class java.sql.SQLException	S1000	47137	[TimesTen][TimesTen 11.2.1.8.0 CLIENT]Statement handle invalid due to client failover
+---
+> class java.lang.NullPointerException	null@ttclientfailover.ttClientFailoverCtrl.getHost(ttClientFailoverCtrl.java:725)

@@ -1,0 +1,68 @@
+---------------------------------------------------------------------------
+----- 10: Synchronize clocks oh demohostVM1, demohostVM2
+---------------------------------------------------------------------------
+ssh root@demohostVM2 /usr/sbin/ntpdate -u demohostVM1
+------- Stdout errors:
+ssh: connect to host demohostVM2 port 22: No route to host
+----------------------
+---------------------------------------------------------------------------
+----- 100: Initializing test
+---------------------------------------------------------------------------
+echo 100 connect TTC_SERVER=demohostVM1;TTC_SERVER_DSN=repdb1_1121;TCP_PORT=53395;TTC_SERVER2=demohostVM2;TTC_SERVER_DSN2=repdb2_1121;TCP_PORT2=53395;uid=appuser;pwd=appuser >control
+Unexpected response, info:
+1c1
+< Connected to:TTC_SERVER=demohostVM1;TTC_SERVER_DSN=repdb1_1121;TCP_PORT=53395;TTC_SERVER2=demohostVM2;TTC_SERVER_DSN2=repdb2_1121;TCP_PORT2=53395;uid=appuser;pwd=appuser
+---
+> Error, info:Problems with loading native library/missing methods: /Users/rstyczynski/TimesTen/tt1121v9/lib/libttJdbcCS.dylib:  no suitable image found.  Did find:  /Users/rstyczynski/TimesTen/tt1121v9/lib/libttJdbcCS.dylib: mach-o, but wrong architecture  /Users/rstyczynski/TimesTen/tt1121/lib/libttJdbcCS.dylib: mach-o, but wrong architecture  /Users/rstyczynski/TimesTen/tt1121v9/lib/libttJdbcCS.dylib: mach-o, but wrong architecture
+Unexpected response, info:
+0a1
+> class java.sql.SQLException	null	0	Problems with loading native library/missing methods: /Users/rstyczynski/TimesTen/tt1121v9/lib/libttJdbcCS.dylib:  no suitable image found.  Did find:  /Users/rstyczynski/TimesTen/tt1121v9/lib/libttJdbcCS.dylib: mach-o, but wrong architecture  /Users/rstyczynski/TimesTen/tt1121/lib/libttJdbcCS.dylib: mach-o, but wrong architecture  /Users/rstyczynski/TimesTen/tt1121v9/lib/libttJdbcCS.dylib: mach-o, but wrong architecture
+---------------------------------------------------------------------------
+----- 110: Reading data from active
+---------------------------------------------------------------------------
+echo 110 select >control
+Unexpected response, info:
+2,4d1
+< Host:repdb1_1121@demohostVM1:53395
+< Status:ACTIVE
+< Resp:X
+---------------------------------------------------------------------------
+----- 200: Crashing master1
+---------------------------------------------------------------------------
+echo 200 comment Crashing master1 >control
+---------------------------------------------------------------------------
+----- 210: Reading data after failure
+---------------------------------------------------------------------------
+echo 210 select >control
+OK, info: Select 
+Unexpected response, info:
+1c1
+< class java.sql.SQLException	S1000	47137	[TimesTen][TimesTen 11.2.1.8.0 CLIENT]Statement handle invalid due to client failover
+---
+> class java.lang.NullPointerException	null@ttclientfailover.ttClientFailoverCtrl.getHost(ttClientFailoverCtrl.java:725)
+---------------------------------------------------------------------------
+----- 300: Activate standby node
+---------------------------------------------------------------------------
+echo 300 comment Activate standby node >control
+ttIsqlCS -v1 -ecall ttrepstateset('active'); call ttrepstateget; exit TTC_SERVER=demohostVM2;TTC_SERVER_DSN=repdb2_1121;TCP_PORT=53395;uid=adm;pwd=adm
+
+------- Stdout errors:
+08001: Unable to connect to data source (DSN: ; Network Address: demohostVM2; Port Number: 53395). EHOSTUNREACH: No route to host. TimesTen Server is unreachable
+----------------------
+---------------------------------------------------------------------------
+----- 310: Reading data from master2 after failover
+---------------------------------------------------------------------------
+echo 310 select >control
+Unexpected response, info:
+2,4d1
+< Host:repdb2_1121@demohostVM2:53395
+< Status:ACTIVE
+< Resp:X
+---------------------------------------------------------------------------
+----- 400: Recovering master active
+---------------------------------------------------------------------------
+echo 400 comment Recovering master active >control
+---------------------------------------------------------------------------
+----- 405: Waiting for master1 state change to STANDBY
+---------------------------------------------------------------------------
+echo 405 comment Waiting for master1 state change to STANDBY >control

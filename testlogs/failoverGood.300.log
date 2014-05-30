@@ -1,0 +1,6 @@
+---------------------------------------------------------------------------
+----- 300: Activate standby node
+---------------------------------------------------------------------------
+------- Stdout errors:
+08001: Unable to connect to data source (DSN: ; Network Address: demohostVM2; Port Number: 53395). EHOSTUNREACH: No route to host. TimesTen Server is unreachable
+----------------------

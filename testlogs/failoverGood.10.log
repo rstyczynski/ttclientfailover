@@ -1,0 +1,6 @@
+---------------------------------------------------------------------------
+----- 10: Synchronize clocks oh demohostVM1, demohostVM2
+---------------------------------------------------------------------------
+------- Stdout errors:
+ssh: connect to host demohostVM2 port 22: No route to host
+----------------------

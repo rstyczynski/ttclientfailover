@@ -127,12 +127,12 @@ function step {
 
 
   if [ "$updateTimesTenLog" == "YES" ]; then
-    ssh $osuser@$host1mgm >/dev/null 2>&1 <<SSH &
+    ssh $osuser1@$host1mgm >/dev/null 2>&1 <<SSH &
       ttDaemonLog -msg "------------------ $testId:$stepId:$where --------------------------------"
 SSH
     logpids=$!
     if [ "$host1" != "$host2" ]; then
-      ssh $osuser@$host2mgm >/dev/null 2>&1 <<SSH &
+      ssh $osuser2@$host2mgm >/dev/null 2>&1 <<SSH &
         ttDaemonLog -msg "------------------ $testId:$stepId:$where --------------------------------"
 SSH
         logpids="$logpids $!"
@@ -491,12 +491,14 @@ function masterDown {
 		_dsn=$dsn1
 		_serverport=$serverport1
 		_hostmgm=$host1mgm
+		_osuser=$osuser1
 		;;
  	master2)
                 _host=$host2
                 _dsn=$dsn2
                 _serverport=$serverport2
                 _hostmgm=$host2mgm
+		_osuser=$osuser2
 		;;
  esac
 
@@ -505,7 +507,7 @@ function masterDown {
    invalidate)
         echoTab "$where - hiding files, killing processes" | tee -a $testId.$stepId.log
         dsnfile=$(ttIsqlCS -e 'call ttconfiguration; exit' "TTC_SERVER=$_host;TTC_SERVER_DSN=$_dsn;TCP_PORT=$_serverport;uid=adm;pwd=adm"  | grep DataStore, | cut -f3 -d ' ')
-        ssh $osuser@$_hostmgm &>/dev/null <<SSH
+        ssh $_osuser@$_hostmgm &>/dev/null <<SSH
                 mv $dsnfile.ds0 $dsnfile.ds0X
                 mv $dsnfile.ds1 $dsnfile.ds1X
                 pids=\$(ttstatus | sed -n /$_dsn/,/-----/p | grep 0x | grep -v KEY | tr -s ' ' | cut -d ' ' -f2 | sort -u)
@@ -515,7 +517,7 @@ SSH
         ;;
    serverDown)
         echoTab "$where - stoping server" | tee -a $testId.$stepId.log
-        ssh -q $osuser@$_hostmgm >/dev/null 2>&1 <<SSH
+        ssh -q $_osuser@$_hostmgm >/dev/null 2>&1 <<SSH
                 ttDaemonAdmin -stopserver
 SSH
         echo Done.
@@ -527,7 +529,7 @@ SSH
         ;;
    daemonDown)
         echoTab "$where - taking TimesTen down" | tee -a $testId.$stepId.log
-                ssh -q $osuser@$_hostmgm >/dev/null 2>&1 <<SSH
+                ssh -q $_osuser@$_hostmgm >/dev/null 2>&1 <<SSH
                    ttDaemonAdmin -stop -force
 SSH
         echo Done.
@@ -548,19 +550,21 @@ function masterUp {
                 _dsn=$dsn1
                 _serverport=$serverport1
                 _hostmgm=$host1mgm
+		_osuser=$osuser1
                 ;;
         master2)
                 _host=$host2
                 _dsn=$dsn2
                 _serverport=$serverport2
                 _hostmgm=$host2mgm
+		_osuser=$osuser2
                 ;;
  esac
  where="Progress, info: recovering TimesTen"
  case "$failureType" in
    invalidate)
         echoTab "$where - moving files back" | tee -a $testId.$stepId.log
-        ssh -q $osuser@$_hostmgm >/dev/null 2>&1 <<SSH
+        ssh -q $_osuser@$_hostmgm >/dev/null 2>&1 <<SSH
                 mv $dsnfile.ds0X $dsnfile.ds0
                 mv $dsnfile.ds1X $dsnfile.ds1
                 ttAdmin -ramload $_dsn
@@ -570,7 +574,7 @@ SSH
         ;;
    serverDown)
         echoTab "$where - starting server" | tee -a $testId.$stepId.log
-        ssh -q $osuser@$_hostmgm >/dev/null 2>&1 <<SSH
+        ssh -q $_osuser@$_hostmgm >/dev/null 2>&1 <<SSH
                 ttDaemonAdmin -startserver
 SSH
         echo Done.
@@ -582,7 +586,7 @@ SSH
         ;;
    daemonDown)
         echoTab "$where - taking TimesTen daemon up, loading datastore, staring rep agent" | tee -a $testId.$stepId.log
-        ssh -q $osuser@$_hostmgm >/dev/null 2>&1 <<SSH
+        ssh -q $_osuser@$_hostmgm >/dev/null 2>&1 <<SSH
                 ttDaemonAdmin -start -force
                 ttAdmin -ramload $_dsn
 		ttisql -e "call ttrepdeactivate;exit" $_dsn
@@ -657,14 +661,14 @@ function ttDeleteLogsInSystem {
 if [ "$deleteTimesTenLog" == "YES" ]; then
     if [ "$host1" != "$host2" ]; then
       echoTab "Deleting TimesTen logs on $host1, $host2"
-      ttDeleteLog $osuser $host1mgm $dsn1; delpids=$!
-      ttDeleteLog $osuser $host2mgm $dsn2; delpids+=" "$!
+      ttDeleteLog $osuser1 $host1mgm $dsn1; delpids=$!
+      ttDeleteLog $osuser2 $host2mgm $dsn2; delpids+=" "$!
       #jobs
       #echo $delpids
       wait $delpids
     else
       echoTab "Deleting TimesTen logs on $host1"
-      ttDeleteLog $osuser $host1mgm $dsn1
+      ttDeleteLog $osuser1 $host1mgm $dsn1
     fi
     echo Done.
 fi

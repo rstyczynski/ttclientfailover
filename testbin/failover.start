@@ -45,10 +45,10 @@ if [ "$startapp" != "NO" ]; then
  #cp $effective_insthome/lib/*.jar $testbin/lib
 
  #copy latest jar if executed on dev system
- if [ -f $testbin/../dist/ttclientfailover.jar ]; then
-   cp $testbin/../dist/ttclientfailover.jar $testbin
- fi
- 
- java $JAVA_OPTS -jar $testbin/ttclientfailover.jar $testId < control >$testId.log 2>$testId.err &
+ #if [ -f $testbin/../dist/ttclientfailover.jar ]; then
+ #  cp $testbin/../dist/ttclientfailover.jar $testbin
+ #fi
+ CLASSPATH=$CLASSPATH:$testbin/../dist/ttclientfailover.jar 
+ java $JAVA_OPTS ttclientfailover.ttClientFailoverCtrl $testId < control >$testId.log 2>$testId.err &
 fi
 

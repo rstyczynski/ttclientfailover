@@ -1,0 +1,2 @@
+0a1
+> class java.sql.SQLException	null	0	Problems with loading native library/missing methods: /Users/rstyczynski/TimesTen/tt1121v9/lib/libttJdbcCS.dylib:  no suitable image found.  Did find:  /Users/rstyczynski/TimesTen/tt1121v9/lib/libttJdbcCS.dylib: mach-o, but wrong architecture  /Users/rstyczynski/TimesTen/tt1121/lib/libttJdbcCS.dylib: mach-o, but wrong architecture  /Users/rstyczynski/TimesTen/tt1121v9/lib/libttJdbcCS.dylib: mach-o, but wrong architecture

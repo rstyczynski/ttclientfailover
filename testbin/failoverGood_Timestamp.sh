@@ -139,17 +139,6 @@ expectError <<EOF
 class java.sql.SQLException	S1000	47137	[TimesTen][TimesTen $ttVersion CLIENT]Statement handle invalid due to client failover
 EOF
 
-#step 415 "Initializing test" <<EOF
-#echo "\$stepId connect TTC_SERVER=$host1;TTC_SERVER_DSN=$dsn1;TCP_PORT=$serverport1;TTC_SERVER2=$host2;TTC_SERVER_DSN2=$dsn2;TCP_PORT2=$serverport2;uid=appuser;pwd=appuser" >control
-#EOF
-#expectResponse <<EOF
-#Connected to:TTC_SERVER=$host1;TTC_SERVER_DSN=$dsn1;TCP_PORT=$serverport1;TTC_SERVER2=$host2;TTC_SERVER_DSN2=$dsn2;TCP_PORT2=$serverport2;uid=appuser;pwd=appuser
-#EOF
-#echoTab "\----checking expected exception"
-#expectError <<EOF
-#EOF
-
-
 step 420 "Reinitializing timefield SQL commands" <<EOF
         echo \$stepId init TIME >control
 EOF

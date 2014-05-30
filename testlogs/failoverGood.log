@@ -1,0 +1,33 @@
+15:26:48:903	0	1345728408905	Available commands:[update, fetch, define, connect, select, quick, init, prepare, exit, help, oneselect, session, commit, exec, disconnect, cfg, comment, insert, ?]
+15:26:48:904	0	1345728408905	Ready to go.
+15:26:48:905	1	0	Step 100 - BEGIN
+15:26:48:943	38	38	Error, info:Problems with loading native library/missing methods: /Users/rstyczynski/TimesTen/tt1121v9/lib/libttJdbcCS.dylib:  no suitable image found.  Did find:  /Users/rstyczynski/TimesTen/tt1121v9/lib/libttJdbcCS.dylib: mach-o, but wrong architecture  /Users/rstyczynski/TimesTen/tt1121/lib/libttJdbcCS.dylib: mach-o, but wrong architecture  /Users/rstyczynski/TimesTen/tt1121v9/lib/libttJdbcCS.dylib: mach-o, but wrong architecture
+15:26:48:944	1	39	class java.sql.SQLException	null	0	Problems with loading native library/missing methods: /Users/rstyczynski/TimesTen/tt1121v9/lib/libttJdbcCS.dylib:  no suitable image found.  Did find:  /Users/rstyczynski/TimesTen/tt1121v9/lib/libttJdbcCS.dylib: mach-o, but wrong architecture  /Users/rstyczynski/TimesTen/tt1121/lib/libttJdbcCS.dylib: mach-o, but wrong architecture  /Users/rstyczynski/TimesTen/tt1121v9/lib/libttJdbcCS.dylib: mach-o, but wrong architecture
+15:26:48:944	0	39	Step 100 - END
+15:26:49:379	435	0	Step 110 - BEGIN
+15:26:49:380	1	1	Select
+15:26:49:380	0	1	class java.lang.NullPointerException	null@ttclientfailover.ttClientFailoverCtrl.getHost(ttClientFailoverCtrl.java:725)
+15:26:49:381	1	2	Step 110 - END
+15:26:49:588	207	1	Step 200 - BEGIN
+15:26:49:589	1	1	Comment: Crashing master1
+15:26:49:589	0	1	Step 200 - END
+15:26:50:000	411	0	Step 210 - BEGIN
+15:26:50:001	1	1	Select
+15:26:50:001	0	1	class java.lang.NullPointerException	null@ttclientfailover.ttClientFailoverCtrl.getHost(ttClientFailoverCtrl.java:725)
+15:26:50:002	1	2	Step 210 - END
+15:26:50:414	412	0	Step 300 - BEGIN
+15:26:50:414	0	0	Comment: Activate standby node
+15:26:50:415	1	1	Step 300 - END
+15:26:50:622	207	0	Step 310 - BEGIN
+15:26:50:623	1	1	Select
+15:26:50:623	0	1	class java.lang.NullPointerException	null@ttclientfailover.ttClientFailoverCtrl.getHost(ttClientFailoverCtrl.java:725)
+15:26:50:623	0	1	Step 310 - END
+15:26:50:833	210	0	Step 400 - BEGIN
+15:26:50:834	1	1	Comment: Recovering master active
+15:26:50:834	0	1	Step 400 - END
+15:26:50:959	125	0	Step 405 - BEGIN
+15:26:50:960	1	1	Comment: Waiting for master1 state change to STANDBY
+15:26:50:960	0	1	Step 405 - END
+15:26:51:269	309	0	Step 406 - BEGIN
+15:26:51:270	1	1	Done.
+15:26:51:270	0	1	Step 406 - END

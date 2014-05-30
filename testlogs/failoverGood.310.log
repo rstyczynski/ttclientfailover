@@ -1,0 +1,8 @@
+---------------------------------------------------------------------------
+----- 310: Reading data from master2 after failover
+---------------------------------------------------------------------------
+Unexpected response, info:
+2,4d1
+< Host:repdb2_1121@demohostVM2:53395
+< Status:ACTIVE
+< Resp:X
